@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Business {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  timezone        String          @default("America/New_York")
+  phone           String?
+  email           String?
+  description     String?
+  heroHeadline    String?
+  heroSubheadline String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  adminUsers      AdminUser[]
+  appointments    Appointment[]
+  blackoutDates   BlackoutDate[]
+  businessHours   BusinessHours[]
+  services        Service[]
+  staffMembers    StaffMember[]
+}
+
+model Service {
+  id              String        @id @default(cuid())
+  businessId      String
+  name            String
+  slug            String
+  description     String?
+  durationMinutes Int
+  bufferMinutes   Int           @default(0)
+  priceCents      Int
+  isActive        Boolean       @default(true)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  appointments    Appointment[]
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, slug])
+}
+
+model StaffMember {
+  id             String              @id @default(cuid())
+  businessId     String
+  name           String
+  slug           String
+  title          String?
+  bio            String?
+  isActive       Boolean             @default(true)
+  sortOrder      Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  appointments   Appointment[]
+  availabilities StaffAvailability[]
+  blackoutDates  BlackoutDate[]
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, slug])
+}
+
+model BusinessHours {
+  id         String   @id @default(cuid())
+  businessId String
+  dayOfWeek  Int
+  openTime   String
+  closeTime  String
+  isClosed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
+}
+
+model StaffAvailability {
+  id            String      @id @default(cuid())
+  staffMemberId String
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  isOff         Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  staffMember   StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([staffMemberId, dayOfWeek])
+}
+
+model BlackoutDate {
+  id            String       @id @default(cuid())
+  businessId    String
+  staffMemberId String?
+  startsAt      DateTime
+  endsAt        DateTime
+  reason        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, startsAt, endsAt])
+  @@index([staffMemberId, startsAt, endsAt])
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  businessId       String
+  serviceId        String
+  staffMemberId    String?
+  customerName     String
+  customerEmail    String
+  customerPhone    String?
+  notes            String?
+  status           AppointmentStatus @default(PENDING)
+  confirmationCode String            @unique
+  startAt          DateTime
+  endAt            DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service          Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staffMember      StaffMember?      @relation(fields: [staffMemberId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, startAt])
+  @@index([staffMemberId, startAt])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  businessId   String
+  name         String
+  email        String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, email])
+}

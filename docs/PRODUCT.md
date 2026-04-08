@@ -1,0 +1,68 @@
+# PRODUCT
+
+## Summary
+This project is a reusable appointment-booking template for service businesses.
+
+The first demo implementation represents a nail salon, but the architecture should remain generic enough to support other appointment-based businesses.
+
+## Core users
+1. Customers who want to book a service
+2. Business admins who manage services, staff, availability, and appointments
+
+## MVP scope
+### Public side
+- landing page
+- services list
+- booking flow
+- availability picker
+- booking confirmation
+
+### Admin side
+- appointment list
+- service CRUD
+- staff CRUD
+- business hours management
+- blackout date management
+- seeded admin user record for future auth work
+
+## Current implementation status
+- implemented: landing page
+- implemented: public services page
+- implemented: booking flow with staff selection
+- implemented: live availability generation
+- implemented: appointment creation with server-side revalidation
+- implemented: admin appointment list
+- implemented: service CRUD
+- implemented: staff CRUD
+- implemented: business hours management
+- implemented: blackout date CRUD
+- not implemented yet: admin login
+- not implemented yet: appointment status update UI
+
+## Core booking assumptions
+- a service has a duration
+- a service may have an optional buffer
+- a booking belongs to one service
+- a booking may belong to one staff member
+- availability is computed from schedules, blackout dates, and existing appointments
+- this first slice requires choosing a specific staff member before slot generation
+- bookings are confirmed immediately after creation in the current implementation
+
+## Out of scope for MVP
+- payments
+- reminders
+- marketplace features
+- multi-location
+- subscriptions
+- advanced analytics
+- external calendar sync
+
+## Future roadmap
+- appointment status editing
+- staff-specific availability management
+- customer accounts
+- reminder system
+- rescheduling
+- deposits / payments
+- white-label branding settings
+- multi-business support

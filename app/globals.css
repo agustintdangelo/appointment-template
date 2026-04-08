@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4ece3;
+  --foreground: #221d18;
+  --muted: #6d6256;
+  --surface: #fffaf4;
+  --card: #fffdf8;
+  --border: #ddcfbd;
+  --accent: #1b625a;
+  --accent-strong: #124740;
+  --accent-foreground: #eff8f6;
+  --highlight: #f2c7bb;
+  --font-sans-stack: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-display-stack: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-highlight: var(--highlight);
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--highlight) 42%, transparent), transparent 24rem),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 28rem),
+    linear-gradient(180deg, #fbf6ef 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans-stack);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 20%, white);
+}
