@@ -6,6 +6,7 @@ export const adminNavItems = [
   { href: "/admin/staff", label: "Staff" },
   { href: "/admin/business-hours", label: "Business hours" },
   { href: "/admin/blackout-dates", label: "Blackout dates" },
+  { href: "/admin/branding", label: "Branding" },
 ] as const;
 
 export const dayOptions = [

@@ -103,7 +103,7 @@ function BlackoutDateForm({
         <div className="flex flex-wrap gap-3 pt-2">
           <button
             type="submit"
-            className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition hover:bg-accent-strong"
+            className="brand-accent-fill rounded-full px-5 py-3 text-sm font-semibold transition"
           >
             {blackoutDate ? "Save blackout" : "Create blackout"}
           </button>

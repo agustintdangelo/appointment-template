@@ -6,6 +6,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import {
+  brandAssetKinds,
+  getBrandAssetFieldName,
+  getBrandAssetRemoveFieldName,
+  readValidatedBrandAssetUpload,
+  validateBrandingSettings,
+} from "@/lib/branding";
+import {
   getFormCheckbox,
   getFormString,
   getOptionalFormString,
@@ -157,6 +164,15 @@ const blackoutSchema = z
       });
     }
   });
+
+const brandingSchema = z.object({
+  primaryFont: z.string().trim().min(1, "Primary font is required."),
+  secondaryFont: z.string().trim().min(1, "Secondary font is required."),
+  primaryColor: z.string().trim().min(1, "Primary color is required."),
+  secondaryColor: z.string().trim().min(1, "Secondary color is required."),
+  backgroundColor: z.string().trim().min(1, "Background color is required."),
+  textColor: z.string().trim().min(1, "Text color is required."),
+});
 
 export async function upsertServiceAction(formData: FormData) {
   const path = "/admin/services";
@@ -485,5 +501,89 @@ export async function deleteBlackoutDateAction(formData: FormData) {
     redirectWithNotice(path, "success", "Blackout date deleted.");
   } catch (error) {
     handleMutationError(path, error, "Unable to delete the blackout date.");
+  }
+}
+
+export async function upsertBrandingAction(formData: FormData) {
+  const path = "/admin/branding";
+
+  try {
+    const businessId = await getAdminBusinessId();
+    const parsedInput = brandingSchema.parse({
+      primaryFont: getFormString(formData.get("primaryFont")),
+      secondaryFont: getFormString(formData.get("secondaryFont")),
+      primaryColor: getFormString(formData.get("primaryColor")),
+      secondaryColor: getFormString(formData.get("secondaryColor")),
+      backgroundColor: getFormString(formData.get("backgroundColor")),
+      textColor: getFormString(formData.get("textColor")),
+    });
+    const branding = validateBrandingSettings(parsedInput);
+    const uploadedAssets = (
+      await Promise.all(
+        brandAssetKinds.map((kind) =>
+          readValidatedBrandAssetUpload(kind, formData.get(getBrandAssetFieldName(kind))),
+        ),
+      )
+    ).filter((asset) => asset !== null);
+    const removeKinds = brandAssetKinds.filter((kind) =>
+      getFormCheckbox(formData, getBrandAssetRemoveFieldName(kind)),
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.business.update({
+        where: {
+          id: businessId,
+        },
+        data: branding,
+      });
+
+      for (const kind of removeKinds) {
+        const replacementForKind = uploadedAssets.find((asset) => asset.kind === kind);
+
+        if (!replacementForKind) {
+          await tx.brandAsset.deleteMany({
+            where: {
+              businessId,
+              kind,
+            },
+          });
+        }
+      }
+
+      for (const asset of uploadedAssets) {
+        await tx.brandAsset.upsert({
+          where: {
+            businessId_kind: {
+              businessId,
+              kind: asset.kind,
+            },
+          },
+          update: {
+            originalFilename: asset.originalFilename,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            data: asset.data,
+          },
+          create: {
+            businessId,
+            kind: asset.kind,
+            originalFilename: asset.originalFilename,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            data: asset.data,
+          },
+        });
+      }
+    });
+
+    revalidateAdminPaths([
+      "/",
+      "/services",
+      "/book",
+      "/admin/branding",
+    ]);
+    redirectWithNotice(path, "success", "Branding saved.");
+  } catch (error) {
+    handleMutationError(path, error, "Unable to save branding.");
   }
 }

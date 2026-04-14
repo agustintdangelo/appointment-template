@@ -5,6 +5,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 
 ## Proposed domain entities
 - Business
+- BrandAsset
 - Service
 - StaffMember
 - BusinessHours
@@ -28,11 +29,13 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 
 ## Current structure
 - `app/`
+  - `/(public)` public route group for branded pages while keeping the same URLs
   - `/` landing page
   - `/services` public services catalog
   - `/book` booking flow
   - `/book/confirmation/[appointmentId]` confirmation page
   - `/admin/appointments` basic admin list
+  - `/admin/branding` branding management page
   - `/admin/services` service CRUD
   - `/admin/staff` staff CRUD
   - `/admin/business-hours` weekly business-hours management
@@ -41,10 +44,13 @@ Provide a generic appointment system that can be adapted to multiple service-bus
   - `/admin/layout.tsx` shared admin shell
   - `/api/availability` slot generation endpoint
   - `/api/appointments` appointment creation endpoint
+  - `/api/brand-assets/[assetId]` database-backed branding asset delivery
 - `lib/booking.ts`
   - slot generation and confirmation-code logic
+- `lib/branding.ts`
+  - branding defaults, font catalog, color derivation, contrast validation, upload validation, and asset URLs
 - `lib/queries.ts`
-  - read models for public and admin pages
+  - read models for public and admin pages, including cached public branding reads
 - `lib/validation.ts`
   - Zod request validation
 - `lib/admin.ts`
@@ -52,9 +58,9 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - `lib/prisma.ts`
   - Prisma client using the Better SQLite adapter
 - `prisma/schema.prisma`
-  - reusable appointment domain schema
+  - reusable appointment domain schema plus branding settings and brand assets
 - `prisma/seed.mjs`
-  - demo business, services, staff, schedules, blackouts, and appointments
+  - demo business, branding defaults, services, staff, schedules, blackouts, and appointments
 - `prisma.config.ts`
   - Prisma 7 datasource and migration config
 
@@ -79,6 +85,45 @@ A slot is available only if:
 - services and staff members with linked appointments cannot be deleted
   - deactivation is the safe operational path
 - Prisma 7 uses `prisma.config.ts` plus `@prisma/adapter-better-sqlite3`
+- branding is business-owned configuration
+  - fonts and colors live on `Business`
+  - uploaded logos and favicon live in `BrandAsset`
+- public theming is token-driven
+  - public layout sets CSS variables from branding settings
+  - existing semantic Tailwind tokens (`background`, `surface`, `accent`, etc.) are derived from those variables
+- branding assets are delivered through app routes instead of filesystem paths
+  - this keeps uploads in the same persistence layer as the rest of the app
+
+## Branding architecture
+
+- `Business` stores the editable theme primitives:
+  - `primaryFont`
+  - `secondaryFont`
+  - `primaryColor`
+  - `secondaryColor`
+  - `backgroundColor`
+  - `textColor`
+- `BrandAsset` stores binary files for:
+  - main logo
+  - alternate logo
+  - favicon
+- the public route group has its own layout
+  - reads branding once per request through a cached Prisma helper
+  - applies CSS variables for the public site only
+  - keeps the admin shell on default neutral styling
+- branding validation happens server-side in the admin action
+  - allowed font list is enforced
+  - colors must be valid 6-digit hex values
+  - text/background contrast must be at least `4.5:1`
+  - primary/background contrast must be at least `3:1`
+  - upload MIME types and file sizes are restricted by asset kind
+
+## Upload handling
+
+- branding files are submitted through a standard multipart server action form
+- validated files are stored in SQLite as `Bytes` / `BLOB`
+- assets are streamed back through `/api/brand-assets/[assetId]`
+- asset URLs include a version query derived from `updatedAt` so replacements bust browser cache cleanly
 
 ## Extension points
 In later versions this can extend into:

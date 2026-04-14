@@ -86,7 +86,7 @@ export default async function AdminBusinessHoursPage({
             <div className="flex items-end">
               <button
                 type="submit"
-                className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition hover:bg-accent-strong"
+                className="brand-accent-fill rounded-full px-5 py-3 text-sm font-semibold transition"
               >
                 Save day
               </button>

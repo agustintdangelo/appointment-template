@@ -25,7 +25,7 @@ export default async function HomePage() {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-10 sm:px-6 lg:px-8">
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
-        <div className="rounded-[2rem] border border-border bg-card/95 p-8 shadow-[0_30px_80px_-50px_rgba(34,29,24,0.45)] sm:p-10">
+        <div className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-8 sm:p-10">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
             Public booking MVP
           </p>
@@ -38,7 +38,7 @@ export default async function HomePage() {
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <Link
               href="/book"
-              className="rounded-full bg-accent px-6 py-3 text-center font-semibold text-accent-foreground transition hover:bg-accent-strong"
+              className="brand-accent-fill rounded-full px-6 py-3 text-center font-semibold transition"
             >
               Start booking
             </Link>
@@ -64,8 +64,8 @@ export default async function HomePage() {
               <p className="font-display text-3xl">{business.staffMembers.length}</p>
               <p className="mt-1 text-sm text-muted">staff members available for scheduling</p>
             </div>
-            <div className="rounded-3xl bg-highlight/35 p-5">
-              <p className="text-sm leading-7 text-foreground">
+            <div className="rounded-3xl bg-highlight-surface p-5 text-highlight-foreground">
+              <p className="text-sm leading-7">
                 Availability is generated from working hours, staff schedules, blackout dates,
                 service durations, buffers, and existing appointments. No fake slots.
               </p>
@@ -78,7 +78,7 @@ export default async function HomePage() {
         {featuredServices.map((service) => (
           <article
             key={service.id}
-            className="rounded-[1.75rem] border border-border bg-card/90 p-6 shadow-[0_20px_60px_-45px_rgba(27,98,90,0.6)]"
+            className="brand-accent-shadow rounded-[1.75rem] border border-border bg-card/90 p-6"
           >
             <p className="text-sm uppercase tracking-[0.3em] text-muted">Featured service</p>
             <h2 className="mt-3 font-display text-3xl">{service.name}</h2>
@@ -89,7 +89,7 @@ export default async function HomePage() {
             </div>
             <Link
               href={`/book?service=${service.slug}`}
-              className="mt-6 inline-flex rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent transition hover:bg-accent hover:text-accent-foreground"
+              className="brand-accent-outline mt-6 inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition"
             >
               Book this service
             </Link>
@@ -118,7 +118,7 @@ export default async function HomePage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/book"
-              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:bg-accent-strong"
+              className="brand-accent-fill rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Open booking flow
             </Link>

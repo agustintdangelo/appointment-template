@@ -19,6 +19,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 
 ### Admin side
 - appointment list
+- branding customization
 - service CRUD
 - staff CRUD
 - business hours management
@@ -32,6 +33,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - implemented: live availability generation
 - implemented: appointment creation with server-side revalidation
 - implemented: admin appointment list
+- implemented: admin-managed branding settings for public pages
 - implemented: service CRUD
 - implemented: staff CRUD
 - implemented: business hours management
@@ -64,5 +66,4 @@ The first demo implementation represents a nail salon, but the architecture shou
 - reminder system
 - rescheduling
 - deposits / payments
-- white-label branding settings
 - multi-business support

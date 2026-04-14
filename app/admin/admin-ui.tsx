@@ -46,7 +46,7 @@ export function AdminNotice({ notice }: { notice: AdminNoticeState }) {
     <div
       className={`rounded-[1.5rem] border px-5 py-4 text-sm ${
         notice.tone === "error"
-          ? "border-highlight bg-highlight/30 text-foreground"
+          ? "border-highlight bg-highlight-surface text-highlight-foreground"
           : "border-border bg-card/90 text-foreground"
       }`}
     >

@@ -28,7 +28,7 @@ export default async function BookingConfirmationPage({
         <p className="mt-4 text-lg leading-8 text-muted">
           Save the confirmation code for any future edits or support conversations.
         </p>
-        <div className="mt-6 inline-flex rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground">
+        <div className="brand-accent-fill mt-6 inline-flex rounded-full px-5 py-2 text-sm font-semibold">
           Confirmation code: {appointment.confirmationCode}
         </div>
       </section>
@@ -100,7 +100,7 @@ export default async function BookingConfirmationPage({
       <div className="flex flex-wrap gap-3">
         <Link
           href="/book"
-          className="rounded-full bg-accent px-5 py-3 font-semibold text-accent-foreground transition hover:bg-accent-strong"
+          className="brand-accent-fill rounded-full px-5 py-3 font-semibold transition"
         >
           Book another appointment
         </Link>

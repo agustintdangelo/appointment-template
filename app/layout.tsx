@@ -1,15 +1,81 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import {
+  Cormorant_Garamond,
+  DM_Sans,
+  Fraunces,
+  Inter,
+  Lora,
+  Manrope,
+  Playfair_Display,
+  Space_Grotesk,
+} from "next/font/google";
 
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  fallback: ["Avenir Next", "Segoe UI", "Helvetica Neue", "sans-serif"],
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+  fallback: ["Avenir Next", "Segoe UI", "Helvetica Neue", "sans-serif"],
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+  fallback: ["Avenir Next", "Segoe UI", "Helvetica Neue", "sans-serif"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+  fallback: ["Avenir Next", "Segoe UI", "Helvetica Neue", "sans-serif"],
+});
+
+const lora = Lora({
+  subsets: ["latin"],
+  variable: "--font-lora",
+  display: "swap",
+  fallback: ["Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", "serif"],
+});
+
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair-display",
+  display: "swap",
+  fallback: ["Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", "serif"],
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ["latin"],
+  variable: "--font-cormorant-garamond",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+  fallback: ["Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", "serif"],
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+  fallback: ["Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Georgia", "serif"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Studio Hours",
-    template: "%s | Studio Hours",
+    default: "Appointment Template",
+    template: "%s | Appointment Template",
   },
   description:
-    "Reusable appointment-booking template for service businesses, seeded with a nail studio demo.",
+    "Reusable appointment-booking template for service businesses.",
 };
 
 export default function RootLayout({
@@ -18,48 +84,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-background text-foreground">
-        <div className="min-h-full">
-          <header className="border-b border-border/80 bg-surface/90 backdrop-blur">
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-              <Link href="/" className="flex items-center gap-3">
-                <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-accent-foreground">
-                  Demo
-                </span>
-                <div>
-                  <p className="font-display text-xl leading-none">Studio Hours</p>
-                  <p className="text-sm text-muted">Reusable appointment template</p>
-                </div>
-              </Link>
-
-              <nav className="flex items-center gap-5 text-sm font-medium text-muted">
-                <Link href="/" className="transition hover:text-foreground">
-                  Home
-                </Link>
-                <Link href="/services" className="transition hover:text-foreground">
-                  Services
-                </Link>
-                <Link href="/book" className="transition hover:text-foreground">
-                  Book
-                </Link>
-                <Link href="/admin/appointments" className="transition hover:text-foreground">
-                  Admin
-                </Link>
-              </nav>
-            </div>
-          </header>
-
-          <main className="flex-1">{children}</main>
-
-          <footer className="border-t border-border/80 bg-surface/80">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:px-6 lg:px-8">
-              <p>Built as a generic appointment-booking starter for time-slot-based businesses.</p>
-              <p>Demo content is vertical-specific. Core domain rules are not.</p>
-            </div>
-          </footer>
-        </div>
-      </body>
+    <html
+      lang="en"
+      className={`h-full antialiased ${inter.variable} ${manrope.variable} ${dmSans.variable} ${spaceGrotesk.variable} ${lora.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${fraunces.variable}`}
+    >
+      <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );
 }

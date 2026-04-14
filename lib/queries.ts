@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/prisma";
 import { dayOptions } from "@/lib/admin";
 
@@ -43,6 +45,36 @@ export async function getPrimaryBusiness() {
     },
   });
 }
+
+export const getPublicBranding = cache(async () => {
+  return prisma.business.findFirst({
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      primaryFont: true,
+      secondaryFont: true,
+      primaryColor: true,
+      secondaryColor: true,
+      backgroundColor: true,
+      textColor: true,
+      brandAssets: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        select: {
+          id: true,
+          kind: true,
+          originalFilename: true,
+          mimeType: true,
+          sizeBytes: true,
+          updatedAt: true,
+        },
+      },
+    },
+  });
+});
 
 export async function getAppointmentConfirmation(appointmentId: string) {
   return prisma.appointment.findUnique({
@@ -139,6 +171,35 @@ export async function getAdminBusinessSummary() {
       description: true,
       phone: true,
       email: true,
+    },
+  });
+}
+
+export async function getAdminBranding() {
+  return prisma.business.findFirst({
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      primaryFont: true,
+      secondaryFont: true,
+      primaryColor: true,
+      secondaryColor: true,
+      backgroundColor: true,
+      textColor: true,
+      brandAssets: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        select: {
+          id: true,
+          kind: true,
+          originalFilename: true,
+          mimeType: true,
+          sizeBytes: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 }

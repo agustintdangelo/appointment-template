@@ -11,8 +11,12 @@
   --accent-strong: #124740;
   --accent-foreground: #eff8f6;
   --highlight: #f2c7bb;
-  --font-sans-stack: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
-  --font-display-stack: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --highlight-surface: color-mix(in srgb, var(--background) 54%, var(--highlight));
+  --highlight-foreground: #221d18;
+  --font-sans-stack: var(--font-inter), "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-display-stack:
+    var(--font-playfair-display), "Iowan Old Style", "Palatino Linotype", "Book Antiqua",
+    Georgia, serif;
 }
 
 @theme inline {
@@ -26,6 +30,8 @@
   --color-accent-strong: var(--accent-strong);
   --color-accent-foreground: var(--accent-foreground);
   --color-highlight: var(--highlight);
+  --color-highlight-surface: var(--highlight-surface);
+  --color-highlight-foreground: var(--highlight-foreground);
   --font-sans: var(--font-sans-stack);
   --font-display: var(--font-display-stack);
 }
@@ -39,10 +45,7 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--highlight) 42%, transparent), transparent 24rem),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 28rem),
-    linear-gradient(180deg, #fbf6ef 0%, var(--background) 100%);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans-stack);
 }
@@ -54,4 +57,73 @@ a {
 
 ::selection {
   background: color-mix(in srgb, var(--accent) 20%, white);
+}
+
+.public-brand-shell {
+  background:
+    radial-gradient(
+      circle at top left,
+      color-mix(in srgb, var(--highlight) 42%, transparent),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 28rem
+    ),
+    linear-gradient(180deg, color-mix(in srgb, white 40%, var(--background)) 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans-stack);
+}
+
+.brand-panel-shadow {
+  box-shadow: 0 30px 80px -50px color-mix(in srgb, var(--foreground) 38%, transparent);
+}
+
+.brand-card-shadow {
+  box-shadow: 0 24px 70px -55px color-mix(in srgb, var(--foreground) 36%, transparent);
+}
+
+.brand-accent-shadow {
+  box-shadow: 0 20px 60px -45px color-mix(in srgb, var(--accent) 52%, transparent);
+}
+
+.brand-on-accent {
+  color: var(--accent-foreground) !important;
+}
+
+.brand-on-accent-muted {
+  color: color-mix(in oklab, var(--accent-foreground) 90%, transparent) !important;
+}
+
+.brand-accent-fill {
+  background-color: var(--accent);
+  color: var(--accent-foreground) !important;
+}
+
+.brand-accent-outline {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.brand-file-accent::file-selector-button {
+  background-color: var(--accent);
+  color: var(--accent-foreground) !important;
+}
+
+@media (hover: hover) {
+  a.brand-accent-fill:hover,
+  button.brand-accent-fill:hover {
+    background-color: var(--accent-strong);
+  }
+
+  a.brand-accent-outline:hover,
+  button.brand-accent-outline:hover {
+    background-color: var(--accent);
+    color: var(--accent-foreground) !important;
+  }
+
+  .brand-file-accent:hover::file-selector-button {
+    background-color: var(--accent-strong);
+  }
 }

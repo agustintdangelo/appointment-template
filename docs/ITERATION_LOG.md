@@ -126,3 +126,57 @@ Date/time: 2026-04-08 admin management slice
 
 ### Next recommended step
 - implement staff availability management and appointment status editing
+
+## Iteration 3
+Date/time: 2026-04-13 branding customization slice
+
+### What changed
+- added business-owned branding settings for fonts and colors
+- added database-backed brand assets for logo, alternate logo, and favicon
+- split public pages into a branded route group with its own layout
+- added runtime public metadata and favicon handling from branding settings
+- added `/admin/branding` with live preview, upload controls, and current asset previews
+- added server-side branding validation for fonts, colors, contrast, file type, and file size
+- added a new app route for serving stored brand assets
+
+### Files/modules affected
+- `app/layout.tsx`
+- `app/globals.css`
+- `app/(public)/`
+- `app/admin/branding/`
+- `app/admin/actions.ts`
+- `app/api/brand-assets/[assetId]/route.ts`
+- `lib/branding.ts`
+- `lib/admin.ts`
+- `lib/queries.ts`
+- `prisma/schema.prisma`
+- `prisma/migrations/20260413165000_add_branding_system/migration.sql`
+- `prisma/seed.mjs`
+- `README.md`
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ITERATION_LOG.md`
+- `docs/ADAPTATION_GUIDE.md`
+
+### Schema / migration changes
+- added `BrandFont` enum
+- added `BrandAssetKind` enum
+- extended `Business` with font and color branding fields
+- added `BrandAsset` for binary branding uploads
+- added the `20260413165000_add_branding_system` migration
+
+### Decisions made
+- applied branding only to public routes and kept admin operationally neutral
+- used `next/font/google` for the curated font catalog and loaded all choices once at the root layout
+- derived semantic theme tokens from a smaller editable set of color primitives
+- stored uploads in SQLite so branding persists with the rest of the business configuration
+- rejected SVG uploads in v1 because there is no sanitization pipeline
+- used a cached Prisma helper so the public layout and metadata share one branding read per request
+
+### Open issues / risks
+- admin auth is still missing, so branding controls remain operationally exposed in the same way as the rest of admin
+- favicon preview quality depends on browser support for the uploaded file type
+- public page marketing copy is still demo-oriented even though branding is now configurable
+
+### Next recommended step
+- implement staff availability management and appointment status editing

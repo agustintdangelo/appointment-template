@@ -16,7 +16,7 @@ This template should be easy to adapt from one appointment-based business to ano
 
 ## Where to change it
 - update the seeded business and demo records in `prisma/seed.mjs`
-- or use the admin CRUD pages to adjust services, staff, business hours, and blackout dates after bootstrapping
+- or use the admin pages to adjust branding, services, staff, business hours, and blackout dates after bootstrapping
 - update homepage and catalog presentation only if the new vertical needs different marketing copy
 - keep the Prisma entities generic unless a real cross-vertical requirement forces a schema change
 
@@ -52,5 +52,7 @@ Keep:
 ## Current adaptation note
 - the current demo uses beauty-oriented service names
 - the core booking logic does not assume beauty-specific behavior
-- day-to-day demo adjustments can now happen through admin CRUD pages instead of seed edits alone
+- day-to-day demo adjustments can now happen through admin pages instead of seed edits alone
+- branding can be changed from `/admin/branding` without code edits
+- logos and favicon are stored in the database and served through the app
 - if a new vertical needs different durations, buffers, schedules, branding, or demo copy, prefer seed/config updates over branching business logic

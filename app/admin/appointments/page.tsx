@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 
 function getStatusClasses(status: string) {
   if (status === "CONFIRMED") {
-    return "bg-accent text-accent-foreground";
+    return "brand-accent-fill";
   }
 
   if (status === "PENDING") {
-    return "bg-highlight/50 text-foreground";
+    return "bg-highlight-surface text-highlight-foreground";
   }
 
   if (status === "COMPLETED") {
