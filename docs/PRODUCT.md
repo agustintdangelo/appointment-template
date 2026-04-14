@@ -18,12 +18,13 @@ The first demo implementation represents a nail salon, but the architecture shou
 - booking confirmation
 
 ### Admin side
+- calendar workspace with day / week / month views
 - appointment list
 - branding customization
 - service CRUD
 - staff CRUD
-- business hours management
-- blackout date management
+- business hours management inside the calendar workspace
+- blackout date management inside the calendar workspace
 - seeded admin user record for future auth work
 
 ## Current implementation status
@@ -32,12 +33,14 @@ The first demo implementation represents a nail salon, but the architecture shou
 - implemented: booking flow with staff selection
 - implemented: live availability generation
 - implemented: appointment creation with server-side revalidation
+- implemented: admin calendar workspace with day / week / month views
+- implemented: appointments and blackout dates rendered together in the admin calendar
 - implemented: admin appointment list
 - implemented: admin-managed branding settings for public pages
-- implemented: service CRUD
-- implemented: staff CRUD
-- implemented: business hours management
-- implemented: blackout date CRUD
+- implemented: service CRUD with card/list browsing and modal create/edit
+- implemented: staff CRUD with card/list browsing and modal create/edit
+- implemented: integrated business-hours editing inside the calendar workspace
+- implemented: integrated blackout browsing plus modal create/edit/delete inside the calendar workspace
 - not implemented yet: admin login
 - not implemented yet: appointment status update UI
 

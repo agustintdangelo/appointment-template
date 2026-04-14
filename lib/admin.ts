@@ -1,11 +1,10 @@
 import { format } from "date-fns";
 
 export const adminNavItems = [
+  { href: "/admin/calendar", label: "Calendar" },
   { href: "/admin/appointments", label: "Appointments" },
   { href: "/admin/services", label: "Services" },
   { href: "/admin/staff", label: "Staff" },
-  { href: "/admin/business-hours", label: "Business hours" },
-  { href: "/admin/blackout-dates", label: "Blackout dates" },
   { href: "/admin/branding", label: "Branding" },
 ] as const;
 

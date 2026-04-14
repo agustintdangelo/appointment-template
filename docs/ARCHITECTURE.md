@@ -34,12 +34,11 @@ Provide a generic appointment system that can be adapted to multiple service-bus
   - `/services` public services catalog
   - `/book` booking flow
   - `/book/confirmation/[appointmentId]` confirmation page
+  - `/admin/calendar` unified scheduling workspace with calendar views, blackout management, and business-hours configuration
   - `/admin/appointments` basic admin list
   - `/admin/branding` branding management page
   - `/admin/services` service CRUD
   - `/admin/staff` staff CRUD
-  - `/admin/business-hours` weekly business-hours management
-  - `/admin/blackout-dates` blackout-date CRUD
   - `/admin/actions.ts` admin server actions
   - `/admin/layout.tsx` shared admin shell
   - `/api/availability` slot generation endpoint
@@ -93,6 +92,15 @@ A slot is available only if:
   - existing semantic Tailwind tokens (`background`, `surface`, `accent`, etc.) are derived from those variables
 - branding assets are delivered through app routes instead of filesystem paths
   - this keeps uploads in the same persistence layer as the rest of the app
+- services and staff admin collections now use client-side browsing state
+  - search, status filter, sort, and card/list view all run against the already-fetched collection in the browser
+  - create and edit happen in modals backed by server actions that return structured form state instead of redirecting
+  - the selected card/list view persists in `sessionStorage` per module
+- the admin calendar is now the primary scheduling surface
+  - appointments and blackout dates are merged into one client-rendered calendar workspace
+  - day / week / month navigation runs in local UI state while data still comes from the existing Prisma models
+  - blackout creation, editing, and deletion reuse the existing blackout schema and persistence model through modal server actions
+  - business hours now use the same modal edit pattern inside the calendar workspace instead of a standalone admin page
 
 ## Branding architecture
 

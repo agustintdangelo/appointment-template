@@ -69,12 +69,13 @@ The public side should support:
 The admin side should support:
 - simple admin auth
 - dashboard
+- calendar workspace with day / week / month views
 - branding management for public fonts, colors, logo assets, and favicon
 - service CRUD
 - staff CRUD
-- business hours management
+- business hours management inside the calendar workspace
 - staff schedule management
-- blackout dates
+- blackout-date management inside the calendar workspace
 - appointment list
 - appointment status updates
 
@@ -174,6 +175,12 @@ Use these existing anchors before inventing new patterns:
   - `app/(public)/layout.tsx`
   - `app/globals.css`
   - `lib/branding.ts`
+- scheduling admin flow:
+  - `/admin/calendar`
+  - `app/admin/calendar/`
+  - `app/admin/actions.ts`
+  - `lib/queries.ts`
+  - keep `/admin/business-hours` and `/admin/blackout-dates` as compatibility redirects when those legacy paths still need to resolve
 - branding admin flow:
   - `/admin/branding`
   - `app/admin/actions.ts`

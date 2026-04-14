@@ -3,6 +3,34 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { dayOptions } from "@/lib/admin";
 
+function normalizeBusinessHoursEntries(
+  hours: Array<{
+    id: string;
+    dayOfWeek: number;
+    openTime: string;
+    closeTime: string;
+    isClosed: boolean;
+  }>,
+) {
+  const hoursByDay = new Map(hours.map((entry) => [entry.dayOfWeek, entry]));
+
+  return dayOptions.map((day) => {
+    const existingEntry = hoursByDay.get(day.value);
+
+    if (existingEntry) {
+      return existingEntry;
+    }
+
+    return {
+      id: `${day.value}`,
+      dayOfWeek: day.value,
+      openTime: "09:00",
+      closeTime: "17:00",
+      isClosed: day.value === 0,
+    };
+  });
+}
+
 export async function getPrimaryBusiness() {
   return prisma.business.findFirst({
     select: {
@@ -299,37 +327,20 @@ export async function getAdminBusinessHours() {
     },
   });
 
-  const hoursByDay = new Map(hours.map((entry) => [entry.dayOfWeek, entry]));
-  const businessHours = dayOptions.map((day) => {
-    const existingEntry = hoursByDay.get(day.value);
-
-    if (existingEntry) {
-      return existingEntry;
-    }
-
-    return {
-      id: `${day.value}`,
-      dayOfWeek: day.value,
-      openTime: "09:00",
-      closeTime: "17:00",
-      isClosed: day.value === 0,
-    };
-  });
-
   return {
     business,
-    businessHours,
+    businessHours: normalizeBusinessHoursEntries(hours),
   };
 }
 
-export async function getAdminBlackoutDates() {
+export async function getAdminCalendar() {
   const business = await getAdminBusinessSummary();
 
   if (!business) {
     return null;
   }
 
-  const [staffMembers, blackoutDates] = await Promise.all([
+  const [staffMembers, businessHours, appointments, blackoutDates] = await Promise.all([
     prisma.staffMember.findMany({
       where: {
         businessId: business.id,
@@ -338,6 +349,64 @@ export async function getAdminBlackoutDates() {
       select: {
         id: true,
         name: true,
+        title: true,
+        isActive: true,
+        sortOrder: true,
+        availabilities: {
+          orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+          select: {
+            id: true,
+            dayOfWeek: true,
+            startTime: true,
+            endTime: true,
+            isOff: true,
+          },
+        },
+      },
+    }),
+    prisma.businessHours.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: {
+        dayOfWeek: "asc",
+      },
+      select: {
+        id: true,
+        dayOfWeek: true,
+        openTime: true,
+        closeTime: true,
+        isClosed: true,
+      },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        confirmationCode: true,
+        customerName: true,
+        customerEmail: true,
+        customerPhone: true,
+        notes: true,
+        status: true,
+        startAt: true,
+        endAt: true,
+        service: {
+          select: {
+            name: true,
+            durationMinutes: true,
+            bufferMinutes: true,
+          },
+        },
+        staffMember: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     }),
     prisma.blackoutDate.findMany({
@@ -363,6 +432,8 @@ export async function getAdminBlackoutDates() {
   return {
     business,
     staffMembers,
+    businessHours: normalizeBusinessHoursEntries(businessHours),
+    appointments,
     blackoutDates,
   };
 }

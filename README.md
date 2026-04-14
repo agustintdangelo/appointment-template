@@ -36,8 +36,7 @@ Open `http://localhost:3000`.
 - Admin branding customization
 - Admin services CRUD
 - Admin staff CRUD
-- Admin business-hours management
-- Admin blackout-date CRUD
+- Admin calendar workspace with integrated blackout and business-hours management
 
 ## Useful routes
 
@@ -45,11 +44,10 @@ Open `http://localhost:3000`.
 - `/services`
 - `/book`
 - `/admin/appointments`
+- `/admin/calendar`
 - `/admin/branding`
 - `/admin/services`
 - `/admin/staff`
-- `/admin/business-hours`
-- `/admin/blackout-dates`
 - `/api/availability`
 - `/api/appointments`
 - `/api/brand-assets/[assetId]`
