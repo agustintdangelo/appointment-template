@@ -124,6 +124,33 @@ Branding is a first-class feature in this template.
   - prefer `bg-highlight-surface text-highlight-foreground` for highlight-toned notices and cards
   - do not assume dark text will remain readable on admin-selected brand colors
 
+## Admin workspace rules
+The admin workspace now has a few concrete patterns that should be extended instead of replaced:
+
+- `app/admin/page.tsx` redirects to `/admin/calendar`, so calendar is the primary admin landing workspace
+- use `AdminPageIntro`, `AdminNotice`, and `AdminEmptyState` from `app/admin/admin-ui.tsx` before creating new page shells
+- services and staff pages are server entrypoints that fetch data, then pass control to client managers
+  - `app/admin/services/services-manager.tsx`
+  - `app/admin/staff/staff-manager.tsx`
+- reusable admin browsing primitives live in `app/admin/components/`
+  - `AdminListHeader`
+  - `CardGrid`
+  - `ListView`
+  - `CreateEntityModal`
+  - `CollectionViewModeButton`
+  - collection state helpers in `admin-collection-types.ts` and `use-session-collection-view.ts`
+- services and staff currently use:
+  - a full-width control panel
+  - card and compact list views
+  - modal-based create/edit flows
+  - client-side search/filter/sort on the already-fetched collection
+  - session-storage persistence for view mode
+- do not reintroduce the older split master-detail editor layout for services or staff unless explicitly requested
+- when using admin server actions for modal CRUD, prefer structured action-state responses that work with `useActionState`
+  - return `status`, `message`, and field-level errors
+  - keep route revalidation explicit
+  - avoid redirect-driven notices when the UI is modal-based
+
 ## Non-goals for initial versions
 Do not add these unless explicitly requested:
 - payments
@@ -181,6 +208,11 @@ Use these existing anchors before inventing new patterns:
   - `app/admin/actions.ts`
   - `lib/queries.ts`
   - keep `/admin/business-hours` and `/admin/blackout-dates` as compatibility redirects when those legacy paths still need to resolve
+- services and staff collection browsing:
+  - `app/admin/services/services-manager.tsx`
+  - `app/admin/staff/staff-manager.tsx`
+  - `app/admin/components/`
+  - `app/admin/admin-ui.tsx`
 - branding admin flow:
   - `/admin/branding`
   - `app/admin/actions.ts`
