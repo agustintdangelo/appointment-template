@@ -31,6 +31,7 @@ function withTime(date, hours, minutes = 0) {
 
 async function main() {
   await prisma.appointment.deleteMany();
+  await prisma.brandAsset.deleteMany();
   await prisma.blackoutDate.deleteMany();
   await prisma.staffAvailability.deleteMany();
   await prisma.businessHours.deleteMany();
@@ -51,6 +52,12 @@ async function main() {
       heroHeadline: "Calm booking for clients. Clear scheduling for the team.",
       heroSubheadline:
         "This demo shows how the template can feel branded without baking vertical-specific logic into the core product.",
+      primaryFont: "INTER",
+      secondaryFont: "PLAYFAIR_DISPLAY",
+      primaryColor: "#1b625a",
+      secondaryColor: "#f2c7bb",
+      backgroundColor: "#f4ece3",
+      textColor: "#221d18",
     },
   });
 

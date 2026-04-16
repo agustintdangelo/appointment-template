@@ -13,6 +13,23 @@ enum AppointmentStatus {
   COMPLETED
 }
 
+enum BrandFont {
+  INTER
+  MANROPE
+  DM_SANS
+  SPACE_GROTESK
+  LORA
+  PLAYFAIR_DISPLAY
+  CORMORANT_GARAMOND
+  FRAUNCES
+}
+
+enum BrandAssetKind {
+  LOGO
+  LOGO_ALT
+  FAVICON
+}
+
 model Business {
   id              String          @id @default(cuid())
   name            String
@@ -23,10 +40,17 @@ model Business {
   description     String?
   heroHeadline    String?
   heroSubheadline String?
+  primaryFont     BrandFont       @default(INTER)
+  secondaryFont   BrandFont       @default(PLAYFAIR_DISPLAY)
+  primaryColor    String          @default("#1b625a")
+  secondaryColor  String          @default("#f2c7bb")
+  backgroundColor String          @default("#f4ece3")
+  textColor       String          @default("#221d18")
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   adminUsers      AdminUser[]
   appointments    Appointment[]
+  brandAssets     BrandAsset[]
   blackoutDates   BlackoutDate[]
   businessHours   BusinessHours[]
   services        Service[]
@@ -136,6 +160,21 @@ model Appointment {
 
   @@index([businessId, startAt])
   @@index([staffMemberId, startAt])
+}
+
+model BrandAsset {
+  id               String         @id @default(cuid())
+  businessId       String
+  kind             BrandAssetKind
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  data             Bytes
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  business         Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, kind])
 }
 
 model AdminUser {

@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import type { AdminEntityActionState } from "@/app/admin/components/admin-collection-types";
+import {
+  brandAssetKinds,
+  getBrandAssetFieldName,
+  getBrandAssetRemoveFieldName,
+  readValidatedBrandAssetUpload,
+  validateBrandingSettings,
+} from "@/lib/branding";
 import {
   getFormCheckbox,
   getFormString,
@@ -18,12 +26,12 @@ function buildRedirectUrl(
   tone: "success" | "error",
   message: string,
 ) {
-  const params = new URLSearchParams({
-    tone,
-    message,
-  });
+  const [pathname, queryString = ""] = path.split("?");
+  const params = new URLSearchParams(queryString);
+  params.set("tone", tone);
+  params.set("message", message);
 
-  return `${path}?${params.toString()}`;
+  return `${pathname}?${params.toString()}`;
 }
 
 function redirectWithNotice(
@@ -32,6 +40,20 @@ function redirectWithNotice(
   message: string,
 ): never {
   redirect(buildRedirectUrl(path, tone, message));
+}
+
+function getRedirectPath(
+  formData: FormData,
+  fallbackPath: string,
+  key: string = "redirectTo",
+) {
+  const requestedPath = getOptionalFormString(formData.get(key));
+
+  if (!requestedPath || !requestedPath.startsWith("/") || requestedPath.startsWith("//")) {
+    return fallbackPath;
+  }
+
+  return requestedPath;
 }
 
 async function getAdminBusinessId() {
@@ -62,6 +84,55 @@ function handleMutationError(path: string, error: unknown, fallbackMessage: stri
   }
 
   redirectWithNotice(path, "error", fallbackMessage);
+}
+
+function buildFieldErrors(error: z.ZodError) {
+  const fieldErrors: Record<string, string> = {};
+
+  for (const issue of error.issues) {
+    const path = issue.path[0];
+
+    if (typeof path === "string" && !fieldErrors[path]) {
+      fieldErrors[path] = issue.message;
+    }
+  }
+
+  return fieldErrors;
+}
+
+function buildEntityActionState(
+  status: AdminEntityActionState["status"],
+  message: string | null,
+  fieldErrors: Record<string, string> = {},
+): AdminEntityActionState {
+  return {
+    status,
+    message,
+    fieldErrors,
+  };
+}
+
+function handleEntityMutationError(
+  error: unknown,
+  fallbackMessage: string,
+): AdminEntityActionState {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return buildEntityActionState("error", fallbackMessage);
+  }
+
+  if (error instanceof z.ZodError) {
+    return buildEntityActionState(
+      "error",
+      error.issues[0]?.message ?? fallbackMessage,
+      buildFieldErrors(error),
+    );
+  }
+
+  if (error instanceof Error) {
+    return buildEntityActionState("error", error.message);
+  }
+
+  return buildEntityActionState("error", fallbackMessage);
 }
 
 function revalidateAdminPaths(paths: string[]) {
@@ -158,9 +229,19 @@ const blackoutSchema = z
     }
   });
 
-export async function upsertServiceAction(formData: FormData) {
-  const path = "/admin/services";
+const brandingSchema = z.object({
+  primaryFont: z.string().trim().min(1, "Primary font is required."),
+  secondaryFont: z.string().trim().min(1, "Secondary font is required."),
+  primaryColor: z.string().trim().min(1, "Primary color is required."),
+  secondaryColor: z.string().trim().min(1, "Secondary color is required."),
+  backgroundColor: z.string().trim().min(1, "Background color is required."),
+  textColor: z.string().trim().min(1, "Text color is required."),
+});
 
+export async function upsertServiceAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const businessId = await getAdminBusinessId();
     const parsedInput = serviceSchema.parse({
@@ -188,7 +269,9 @@ export async function upsertServiceAction(formData: FormData) {
     });
 
     if (duplicateService) {
-      redirectWithNotice(path, "error", "Service slug must be unique within the business.");
+      return buildEntityActionState("error", "Service slug must be unique within the business.", {
+        slug: "Service slug must be unique within the business.",
+      });
     }
 
     const serviceData = {
@@ -223,20 +306,21 @@ export async function upsertServiceAction(formData: FormData) {
       "/admin/services",
       "/admin/appointments",
     ]);
-    redirectWithNotice(path, "success", "Service saved.");
+    return buildEntityActionState("success", "Service saved.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to save the service.");
+    return handleEntityMutationError(error, "Unable to save the service.");
   }
 }
 
-export async function deleteServiceAction(formData: FormData) {
-  const path = "/admin/services";
-
+export async function deleteServiceAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const serviceId = getFormString(formData.get("serviceId"));
 
     if (!serviceId) {
-      redirectWithNotice(path, "error", "Service id is missing.");
+      return buildEntityActionState("error", "Service id is missing.");
     }
 
     const linkedAppointments = await prisma.appointment.count({
@@ -246,8 +330,7 @@ export async function deleteServiceAction(formData: FormData) {
     });
 
     if (linkedAppointments > 0) {
-      redirectWithNotice(
-        path,
+      return buildEntityActionState(
         "error",
         "Services with appointments cannot be deleted. Deactivate them instead.",
       );
@@ -266,15 +349,16 @@ export async function deleteServiceAction(formData: FormData) {
       "/admin/services",
       "/admin/appointments",
     ]);
-    redirectWithNotice(path, "success", "Service deleted.");
+    return buildEntityActionState("success", "Service deleted.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to delete the service.");
+    return handleEntityMutationError(error, "Unable to delete the service.");
   }
 }
 
-export async function upsertStaffMemberAction(formData: FormData) {
-  const path = "/admin/staff";
-
+export async function upsertStaffMemberAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const businessId = await getAdminBusinessId();
     const parsedInput = staffSchema.parse({
@@ -300,7 +384,9 @@ export async function upsertStaffMemberAction(formData: FormData) {
     });
 
     if (duplicateStaffMember) {
-      redirectWithNotice(path, "error", "Staff slug must be unique within the business.");
+      return buildEntityActionState("error", "Staff slug must be unique within the business.", {
+        slug: "Staff slug must be unique within the business.",
+      });
     }
 
     const staffMemberData = {
@@ -332,22 +418,23 @@ export async function upsertStaffMemberAction(formData: FormData) {
       "/book",
       "/admin/staff",
       "/admin/appointments",
-      "/admin/blackout-dates",
+      "/admin/calendar",
     ]);
-    redirectWithNotice(path, "success", "Staff member saved.");
+    return buildEntityActionState("success", "Staff member saved.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to save the staff member.");
+    return handleEntityMutationError(error, "Unable to save the staff member.");
   }
 }
 
-export async function deleteStaffMemberAction(formData: FormData) {
-  const path = "/admin/staff";
-
+export async function deleteStaffMemberAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const staffMemberId = getFormString(formData.get("staffMemberId"));
 
     if (!staffMemberId) {
-      redirectWithNotice(path, "error", "Staff member id is missing.");
+      return buildEntityActionState("error", "Staff member id is missing.");
     }
 
     const linkedAppointments = await prisma.appointment.count({
@@ -357,8 +444,7 @@ export async function deleteStaffMemberAction(formData: FormData) {
     });
 
     if (linkedAppointments > 0) {
-      redirectWithNotice(
-        path,
+      return buildEntityActionState(
         "error",
         "Staff with appointments cannot be deleted. Deactivate them instead.",
       );
@@ -376,17 +462,18 @@ export async function deleteStaffMemberAction(formData: FormData) {
       "/book",
       "/admin/staff",
       "/admin/appointments",
-      "/admin/blackout-dates",
+      "/admin/calendar",
     ]);
-    redirectWithNotice(path, "success", "Staff member deleted.");
+    return buildEntityActionState("success", "Staff member deleted.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to delete the staff member.");
+    return handleEntityMutationError(error, "Unable to delete the staff member.");
   }
 }
 
-export async function upsertBusinessHoursAction(formData: FormData) {
-  const path = "/admin/business-hours";
-
+export async function upsertBusinessHoursAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const businessId = await getAdminBusinessId();
     const parsedInput = businessHoursSchema.parse({
@@ -417,16 +504,17 @@ export async function upsertBusinessHoursAction(formData: FormData) {
       },
     });
 
-    revalidateAdminPaths(["/admin/business-hours", "/book"]);
-    redirectWithNotice(path, "success", "Business hours updated.");
+    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    return buildEntityActionState("success", "Business hours updated.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to update business hours.");
+    return handleEntityMutationError(error, "Unable to update business hours.");
   }
 }
 
-export async function upsertBlackoutDateAction(formData: FormData) {
-  const path = "/admin/blackout-dates";
-
+export async function upsertBlackoutDateAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const businessId = await getAdminBusinessId();
     const parsedInput = blackoutSchema.parse({
@@ -458,21 +546,22 @@ export async function upsertBlackoutDateAction(formData: FormData) {
       });
     }
 
-    revalidateAdminPaths(["/admin/blackout-dates", "/book"]);
-    redirectWithNotice(path, "success", "Blackout date saved.");
+    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    return buildEntityActionState("success", "Blackout block saved.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to save the blackout date.");
+    return handleEntityMutationError(error, "Unable to save the blackout date.");
   }
 }
 
-export async function deleteBlackoutDateAction(formData: FormData) {
-  const path = "/admin/blackout-dates";
-
+export async function deleteBlackoutDateAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
   try {
     const blackoutDateId = getFormString(formData.get("blackoutDateId"));
 
     if (!blackoutDateId) {
-      redirectWithNotice(path, "error", "Blackout date id is missing.");
+      return buildEntityActionState("error", "Blackout block id is missing.");
     }
 
     await prisma.blackoutDate.delete({
@@ -481,9 +570,93 @@ export async function deleteBlackoutDateAction(formData: FormData) {
       },
     });
 
-    revalidateAdminPaths(["/admin/blackout-dates", "/book"]);
-    redirectWithNotice(path, "success", "Blackout date deleted.");
+    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    return buildEntityActionState("success", "Blackout block deleted.");
   } catch (error) {
-    handleMutationError(path, error, "Unable to delete the blackout date.");
+    return handleEntityMutationError(error, "Unable to delete the blackout date.");
+  }
+}
+
+export async function upsertBrandingAction(formData: FormData) {
+  const path = getRedirectPath(formData, "/admin/branding");
+
+  try {
+    const businessId = await getAdminBusinessId();
+    const parsedInput = brandingSchema.parse({
+      primaryFont: getFormString(formData.get("primaryFont")),
+      secondaryFont: getFormString(formData.get("secondaryFont")),
+      primaryColor: getFormString(formData.get("primaryColor")),
+      secondaryColor: getFormString(formData.get("secondaryColor")),
+      backgroundColor: getFormString(formData.get("backgroundColor")),
+      textColor: getFormString(formData.get("textColor")),
+    });
+    const branding = validateBrandingSettings(parsedInput);
+    const uploadedAssets = (
+      await Promise.all(
+        brandAssetKinds.map((kind) =>
+          readValidatedBrandAssetUpload(kind, formData.get(getBrandAssetFieldName(kind))),
+        ),
+      )
+    ).filter((asset) => asset !== null);
+    const removeKinds = brandAssetKinds.filter((kind) =>
+      getFormCheckbox(formData, getBrandAssetRemoveFieldName(kind)),
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.business.update({
+        where: {
+          id: businessId,
+        },
+        data: branding,
+      });
+
+      for (const kind of removeKinds) {
+        const replacementForKind = uploadedAssets.find((asset) => asset.kind === kind);
+
+        if (!replacementForKind) {
+          await tx.brandAsset.deleteMany({
+            where: {
+              businessId,
+              kind,
+            },
+          });
+        }
+      }
+
+      for (const asset of uploadedAssets) {
+        await tx.brandAsset.upsert({
+          where: {
+            businessId_kind: {
+              businessId,
+              kind: asset.kind,
+            },
+          },
+          update: {
+            originalFilename: asset.originalFilename,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            data: asset.data,
+          },
+          create: {
+            businessId,
+            kind: asset.kind,
+            originalFilename: asset.originalFilename,
+            mimeType: asset.mimeType,
+            sizeBytes: asset.sizeBytes,
+            data: asset.data,
+          },
+        });
+      }
+    });
+
+    revalidateAdminPaths([
+      "/",
+      "/services",
+      "/book",
+      "/admin/branding",
+    ]);
+    redirectWithNotice(path, "success", "Branding saved.");
+  } catch (error) {
+    handleMutationError(path, error, "Unable to save branding.");
   }
 }

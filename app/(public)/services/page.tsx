@@ -34,7 +34,7 @@ export default async function ServicesPage() {
         {business.services.map((service) => (
           <article
             key={service.id}
-            className="rounded-[1.75rem] border border-border bg-surface/95 p-6 shadow-[0_24px_70px_-55px_rgba(34,29,24,0.55)]"
+            className="brand-card-shadow rounded-[1.75rem] border border-border bg-surface/95 p-6"
           >
             <p className="text-sm uppercase tracking-[0.3em] text-muted">Service</p>
             <h2 className="mt-3 font-display text-3xl">{service.name}</h2>
@@ -51,7 +51,7 @@ export default async function ServicesPage() {
             </dl>
             <Link
               href={`/book?service=${service.slug}`}
-              className="mt-6 inline-flex rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition hover:bg-accent-strong"
+              className="brand-accent-fill mt-6 inline-flex rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               Book {service.name}
             </Link>

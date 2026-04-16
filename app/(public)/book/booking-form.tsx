@@ -209,7 +209,7 @@ export default function BookingForm({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
       <form
         onSubmit={handleSubmit}
-        className="rounded-[2rem] border border-border bg-card/95 p-8 shadow-[0_30px_80px_-50px_rgba(34,29,24,0.45)]"
+        className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-8"
       >
         <div className="grid gap-5 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
@@ -261,7 +261,9 @@ export default function BookingForm({
           </div>
 
           {availabilityError ? (
-            <p className="mt-4 rounded-2xl bg-highlight/40 px-4 py-3 text-sm">{availabilityError}</p>
+            <p className="mt-4 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
+              {availabilityError}
+            </p>
           ) : null}
 
           {!availabilityError && !isLoadingSlots && slots.length === 0 ? (
@@ -278,7 +280,7 @@ export default function BookingForm({
                 onClick={() => setSelectedSlot(slot.startAt)}
                 className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                   selectedSlot === slot.startAt
-                    ? "border-accent bg-accent text-accent-foreground"
+                    ? "brand-accent-fill border-accent"
                     : "border-border bg-surface hover:border-accent"
                 }`}
               >
@@ -330,13 +332,15 @@ export default function BookingForm({
         </div>
 
         {bookingError ? (
-          <p className="mt-6 rounded-2xl bg-highlight/40 px-4 py-3 text-sm">{bookingError}</p>
+          <p className="mt-6 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
+            {bookingError}
+          </p>
         ) : null}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-8 rounded-full bg-accent px-6 py-3 font-semibold text-accent-foreground transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
+          className="brand-accent-fill mt-8 rounded-full px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isSubmitting ? "Confirming..." : "Confirm booking"}
         </button>

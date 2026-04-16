@@ -11,7 +11,7 @@ export type AdminNoticeState = {
   message: string;
 } | null;
 
-function readFirstValue(value: SearchParamValue) {
+export function readSearchParamValue(value: SearchParamValue) {
   if (Array.isArray(value)) {
     return value[0];
   }
@@ -19,17 +19,35 @@ function readFirstValue(value: SearchParamValue) {
   return value;
 }
 
+export function buildAdminPath(
+  pathname: string,
+  params: Record<string, string | null | undefined>,
+) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    const normalizedValue = value?.trim();
+
+    if (normalizedValue) {
+      searchParams.set(key, normalizedValue);
+    }
+  }
+
+  const query = searchParams.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
 export async function getAdminNotice(
   searchParams?: SearchParamsRecord | Promise<SearchParamsRecord>,
 ): Promise<AdminNoticeState> {
   const resolvedParams = (await searchParams) ?? {};
-  const message = readFirstValue(resolvedParams.message);
+  const message = readSearchParamValue(resolvedParams.message);
 
   if (!message) {
     return null;
   }
 
-  const tone = readFirstValue(resolvedParams.tone) === "error" ? "error" : "success";
+  const tone = readSearchParamValue(resolvedParams.tone) === "error" ? "error" : "success";
 
   return {
     tone,
@@ -46,7 +64,7 @@ export function AdminNotice({ notice }: { notice: AdminNoticeState }) {
     <div
       className={`rounded-[1.5rem] border px-5 py-4 text-sm ${
         notice.tone === "error"
-          ? "border-highlight bg-highlight/30 text-foreground"
+          ? "border-highlight bg-highlight-surface text-highlight-foreground"
           : "border-border bg-card/90 text-foreground"
       }`}
     >
