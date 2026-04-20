@@ -1,6 +1,7 @@
 import { AppointmentStatus } from "@prisma/client";
 import { addDays, addMinutes, format, getDay, parseISO, startOfDay } from "date-fns";
 
+import { intersectDateWindows } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
 
 const SLOT_INTERVAL_MINUTES = 15;
@@ -38,7 +39,7 @@ export async function getDailyAvailability(input: AvailabilityInput) {
   const dayEnd = addDays(dayStart, 1);
   const dayOfWeek = getDay(targetDay);
 
-  const [service, staffMember, businessHours, blackoutDates, appointments] = await Promise.all([
+  const [service, staffMember, businessHoursDay, businessHours, blackoutDates, appointments] = await Promise.all([
     prisma.service.findFirst({
       where: {
         id: input.serviceId,
@@ -72,7 +73,7 @@ export async function getDailyAvailability(input: AvailabilityInput) {
         },
       },
     }),
-    prisma.businessHours.findUnique({
+    prisma.businessHoursDay.findUnique({
       where: {
         businessId_dayOfWeek: {
           businessId: input.businessId,
@@ -80,9 +81,18 @@ export async function getDailyAvailability(input: AvailabilityInput) {
         },
       },
       select: {
+        isClosed: true,
+      },
+    }),
+    prisma.businessHours.findMany({
+      where: {
+        businessId: input.businessId,
+        dayOfWeek,
+      },
+      orderBy: [{ openTime: "asc" }, { closeTime: "asc" }],
+      select: {
         openTime: true,
         closeTime: true,
-        isClosed: true,
       },
     }),
     prisma.blackoutDate.findMany({
@@ -141,7 +151,9 @@ export async function getDailyAvailability(input: AvailabilityInput) {
     throw new Error("Staff member not found.");
   }
 
-  if (!businessHours || businessHours.isClosed) {
+  const isBusinessClosed = businessHoursDay?.isClosed ?? businessHours.length === 0;
+
+  if (isBusinessClosed || businessHours.length === 0) {
     return {
       serviceDurationMinutes: service.durationMinutes,
       serviceBufferMinutes: service.bufferMinutes,
@@ -149,29 +161,16 @@ export async function getDailyAvailability(input: AvailabilityInput) {
     };
   }
 
-  const businessWindowStart = combineDateAndTime(targetDay, businessHours.openTime);
-  const businessWindowEnd = combineDateAndTime(targetDay, businessHours.closeTime);
   const serviceBlockMinutes = service.durationMinutes + service.bufferMinutes;
-
-  const workWindows = staffMember.availabilities
-    .map((availability) => {
-      const availabilityStart = combineDateAndTime(targetDay, availability.startTime);
-      const availabilityEnd = combineDateAndTime(targetDay, availability.endTime);
-      const windowStart =
-        availabilityStart.getTime() > businessWindowStart.getTime()
-          ? availabilityStart
-          : businessWindowStart;
-      const windowEnd =
-        availabilityEnd.getTime() < businessWindowEnd.getTime()
-          ? availabilityEnd
-          : businessWindowEnd;
-
-      return {
-        startAt: windowStart,
-        endAt: windowEnd,
-      };
-    })
-    .filter((window) => window.startAt.getTime() < window.endAt.getTime());
+  const businessWindows = businessHours.map((window) => ({
+    startAt: combineDateAndTime(targetDay, window.openTime),
+    endAt: combineDateAndTime(targetDay, window.closeTime),
+  }));
+  const staffWindows = staffMember.availabilities.map((availability) => ({
+    startAt: combineDateAndTime(targetDay, availability.startTime),
+    endAt: combineDateAndTime(targetDay, availability.endTime),
+  }));
+  const workWindows = intersectDateWindows(staffWindows, businessWindows);
 
   const slots: AvailabilitySlot[] = [];
 

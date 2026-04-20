@@ -31,30 +31,43 @@ enum BrandAssetKind {
 }
 
 model Business {
-  id              String          @id @default(cuid())
-  name            String
-  slug            String          @unique
-  timezone        String          @default("America/New_York")
-  phone           String?
-  email           String?
-  description     String?
-  heroHeadline    String?
-  heroSubheadline String?
-  primaryFont     BrandFont       @default(INTER)
-  secondaryFont   BrandFont       @default(PLAYFAIR_DISPLAY)
-  primaryColor    String          @default("#1b625a")
-  secondaryColor  String          @default("#f2c7bb")
-  backgroundColor String          @default("#f4ece3")
-  textColor       String          @default("#221d18")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  adminUsers      AdminUser[]
-  appointments    Appointment[]
-  brandAssets     BrandAsset[]
-  blackoutDates   BlackoutDate[]
-  businessHours   BusinessHours[]
-  services        Service[]
-  staffMembers    StaffMember[]
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  timezone          String             @default("America/New_York")
+  phone             String?
+  email             String?
+  description       String?
+  heroHeadline      String?
+  heroSubheadline   String?
+  primaryFont       BrandFont          @default(INTER)
+  secondaryFont     BrandFont          @default(PLAYFAIR_DISPLAY)
+  primaryColor      String             @default("#1b625a")
+  secondaryColor    String             @default("#f2c7bb")
+  backgroundColor   String             @default("#f4ece3")
+  textColor         String             @default("#221d18")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  adminUsers        AdminUser[]
+  appointments      Appointment[]
+  brandAssets       BrandAsset[]
+  blackoutDates     BlackoutDate[]
+  businessHours     BusinessHours[]
+  businessHoursDays BusinessHoursDay[]
+  services          Service[]
+  staffMembers      StaffMember[]
+}
+
+model BusinessHoursDay {
+  id         String   @id @default(cuid())
+  businessId String
+  dayOfWeek  Int
+  isClosed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
 }
 
 model Service {
@@ -101,12 +114,11 @@ model BusinessHours {
   dayOfWeek  Int
   openTime   String
   closeTime  String
-  isClosed   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  @@unique([businessId, dayOfWeek])
+  @@index([businessId, dayOfWeek, openTime])
 }
 
 model StaffAvailability {

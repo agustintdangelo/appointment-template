@@ -25,6 +25,11 @@ export type BrandingSettings = {
   textColor: string;
 };
 
+export type BrandingWarning = {
+  id: "text-background-contrast" | "primary-background-contrast";
+  message: string;
+};
+
 type BrandFontOption = {
   value: BrandFontValue;
   label: string;
@@ -342,10 +347,11 @@ function getFontStack(font: BrandFontValue) {
   return `${fontOption.cssVariable}, ${fontOption.fallback}`;
 }
 
-export function validateBrandingSettings(
+export function getBrandingWarnings(
   input: Partial<Record<keyof BrandingSettings, string | null | undefined>>,
 ) {
   const normalizedSettings = normalizeBrandingSettings(input);
+  const warnings: BrandingWarning[] = [];
 
   const textContrast = getContrastRatio(
     normalizedSettings.backgroundColor,
@@ -353,7 +359,12 @@ export function validateBrandingSettings(
   );
 
   if (textContrast < brandingTextContrastThreshold) {
-    throw new Error("Text color must maintain at least 4.5:1 contrast against the background.");
+    warnings.push({
+      id: "text-background-contrast",
+      message: `Text and background contrast is ${textContrast.toFixed(
+        2,
+      )}:1. This may be difficult to read for some visitors.`,
+    });
   }
 
   const primaryContrast = getContrastRatio(
@@ -362,12 +373,15 @@ export function validateBrandingSettings(
   );
 
   if (primaryContrast < brandingPrimaryContrastThreshold) {
-    throw new Error(
-      "Primary color must maintain at least 3:1 contrast against the background.",
-    );
+    warnings.push({
+      id: "primary-background-contrast",
+      message: `Primary color contrast against the background is ${primaryContrast.toFixed(
+        2,
+      )}:1. Buttons and emphasis surfaces may feel low contrast.`,
+    });
   }
 
-  return normalizedSettings;
+  return warnings;
 }
 
 export function buildBrandTheme(input?: Partial<Record<keyof BrandingSettings, string | null>>) {

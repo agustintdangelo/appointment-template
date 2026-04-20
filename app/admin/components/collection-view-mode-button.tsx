@@ -68,7 +68,7 @@ export default function CollectionViewModeButton({
       aria-label={viewMode === "cards" ? "Switch to list view" : "Switch to card view"}
       title={viewMode === "cards" ? "Switch to list view" : "Switch to card view"}
       onClick={() => onChange(viewMode === "cards" ? "list" : "cards")}
-      className="flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-border bg-card text-muted transition hover:border-accent hover:text-accent"
+      className="flex h-14 w-14 items-center justify-center rounded-[1rem] border border-slate-300 bg-white text-slate-500 transition hover:border-slate-400 hover:text-slate-900"
     >
       <ViewModeIcon viewMode={viewMode} />
     </button>

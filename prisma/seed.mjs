@@ -35,6 +35,7 @@ async function main() {
   await prisma.blackoutDate.deleteMany();
   await prisma.staffAvailability.deleteMany();
   await prisma.businessHours.deleteMany();
+  await prisma.businessHoursDay.deleteMany();
   await prisma.adminUser.deleteMany();
   await prisma.staffMember.deleteMany();
   await prisma.service.deleteMany();
@@ -136,56 +137,51 @@ async function main() {
     }),
   ]);
 
+  await prisma.businessHoursDay.createMany({
+    data: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+      businessId: business.id,
+      dayOfWeek,
+      isClosed: dayOfWeek === 0,
+    })),
+  });
+
   await prisma.businessHours.createMany({
     data: [
-      {
-        businessId: business.id,
-        dayOfWeek: 0,
-        openTime: "00:00",
-        closeTime: "00:00",
-        isClosed: true,
-      },
       {
         businessId: business.id,
         dayOfWeek: 1,
         openTime: "09:00",
         closeTime: "18:00",
-        isClosed: false,
       },
       {
         businessId: business.id,
         dayOfWeek: 2,
         openTime: "09:00",
         closeTime: "18:00",
-        isClosed: false,
       },
       {
         businessId: business.id,
         dayOfWeek: 3,
         openTime: "09:00",
         closeTime: "18:00",
-        isClosed: false,
       },
       {
         businessId: business.id,
         dayOfWeek: 4,
         openTime: "09:00",
         closeTime: "18:00",
-        isClosed: false,
       },
       {
         businessId: business.id,
         dayOfWeek: 5,
         openTime: "09:00",
         closeTime: "18:00",
-        isClosed: false,
       },
       {
         businessId: business.id,
         dayOfWeek: 6,
         openTime: "10:00",
         closeTime: "16:00",
-        isClosed: false,
       },
     ],
   });

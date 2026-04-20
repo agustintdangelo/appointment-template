@@ -9,18 +9,18 @@ export const dynamic = "force-dynamic";
 
 function getStatusClasses(status: string) {
   if (status === "CONFIRMED") {
-    return "brand-accent-fill";
+    return "admin-status-badge admin-status-badge-confirmed";
   }
 
   if (status === "PENDING") {
-    return "bg-highlight-surface text-highlight-foreground";
+    return "admin-status-badge admin-status-badge-pending";
   }
 
   if (status === "COMPLETED") {
-    return "bg-surface text-foreground";
+    return "admin-status-badge admin-status-badge-completed";
   }
 
-  return "bg-surface text-muted";
+  return "admin-status-badge";
 }
 
 export default async function AdminAppointmentsPage() {
@@ -43,7 +43,7 @@ export default async function AdminAppointmentsPage() {
         description="This first operational view stays simple: upcoming appointments, customer details, service context, and status visibility."
       />
 
-      <section className="overflow-hidden rounded-[2rem] border border-border bg-surface/95">
+      <section className="admin-list-shell">
         <div className="grid grid-cols-[1.15fr_0.9fr_0.9fr_0.6fr] gap-4 border-b border-border px-6 py-4 text-xs font-semibold uppercase tracking-[0.3em] text-muted">
           <p>Customer</p>
           <p>Appointment</p>
@@ -79,9 +79,9 @@ export default async function AdminAppointmentsPage() {
 
                 <div>
                   <span
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                    className={getStatusClasses(
                       appointment.status,
-                    )}`}
+                    )}
                   >
                     {appointment.status}
                   </span>

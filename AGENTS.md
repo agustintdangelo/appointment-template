@@ -149,6 +149,7 @@ The admin workspace now has a few concrete patterns that should be extended inst
   - `ListView`
   - `CreateEntityModal`
   - `CollectionViewModeButton`
+  - `CollectionViewTransition`
   - collection state helpers in `admin-collection-types.ts` and `use-session-collection-view.ts`
 - services and staff currently use:
   - a full-width control panel
@@ -156,6 +157,7 @@ The admin workspace now has a few concrete patterns that should be extended inst
   - modal-based create/edit flows
   - client-side search/filter/sort on the already-fetched collection
   - session-storage persistence for view mode
+  - shared motion polish for card/list and sort-driven collection updates through `CollectionViewTransition`
 - do not reintroduce the older split master-detail editor layout for services or staff unless explicitly requested
 - when using admin server actions for modal CRUD, prefer structured action-state responses that work with `useActionState`
   - return `status`, `message`, and field-level errors
@@ -226,6 +228,7 @@ Use these existing anchors before inventing new patterns:
   - `app/admin/staff/staff-manager.tsx`
   - `app/admin/components/`
   - `app/admin/admin-ui.tsx`
+  - `app/admin/components/collection-view-transition.tsx`
 - branding admin flow:
   - `/admin/branding`
   - `app/admin/actions.ts`

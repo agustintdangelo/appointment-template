@@ -1,9 +1,5 @@
-import {
-  AdminEmptyState,
-  AdminNotice,
-  AdminPageIntro,
-  getAdminNotice,
-} from "@/app/admin/admin-ui";
+import type { BrandingFormAsset } from "@/app/admin/branding/branding-types";
+import { AdminEmptyState, AdminPageIntro } from "@/app/admin/admin-ui";
 import BrandingForm from "@/app/admin/branding/branding-form";
 import {
   buildBrandAssetUrl,
@@ -12,14 +8,8 @@ import {
 } from "@/lib/branding";
 import { getAdminBranding } from "@/lib/queries";
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-export default async function AdminBrandingPage({
-  searchParams,
-}: {
-  searchParams?: Promise<SearchParams>;
-}) {
-  const [data, notice] = await Promise.all([getAdminBranding(), getAdminNotice(searchParams)]);
+export default async function AdminBrandingPage() {
+  const data = await getAdminBranding();
 
   if (!data) {
     return (
@@ -35,25 +25,24 @@ export default async function AdminBrandingPage({
     url: buildBrandAssetUrl(asset) ?? "",
   }));
   const assetsByKind = new Map(assets.map((asset) => [asset.kind, asset]));
+  const formAssets: BrandingFormAsset[] = getBrandAssetConfigs().map((config) => ({
+    ...config,
+    currentAsset: assetsByKind.get(config.kind) ?? null,
+  }));
 
   return (
     <>
       <AdminPageIntro
         eyebrow="Admin branding"
-        title="Customize the public-facing identity."
-        description="Fonts, colors, logos, and favicon all flow through one branding model so this reusable app can be adapted without touching code."
+        title="Public branding"
+        description="Manage the public site's fonts, colors, logos, and favicon here. The editor stays neutral so you can review branding choices without styling the admin workspace itself."
       />
-
-      <AdminNotice notice={notice} />
 
       <BrandingForm
         businessName={data.name}
         businessDescription={data.description}
         initialBranding={normalizeBrandingSettings(data)}
-        assets={getBrandAssetConfigs().map((config) => ({
-          ...config,
-          currentAsset: assetsByKind.get(config.kind) ?? null,
-        }))}
+        assets={formAssets}
       />
     </>
   );
