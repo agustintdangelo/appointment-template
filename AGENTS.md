@@ -47,6 +47,7 @@ The app will typically revolve around entities like:
 - BrandAsset
 - Service
 - StaffMember
+- BusinessHoursDay
 - BusinessHours
 - StaffAvailability
 - BlackoutDate
@@ -73,7 +74,7 @@ The admin side should support:
 - branding management for public fonts, colors, logo assets, and favicon
 - service CRUD
 - staff CRUD
-- business hours management inside the calendar workspace
+- business hours management inside the calendar workspace, including multiple Business periods per day, preserved closed-day periods, and copy-to-days editing
 - staff schedule management
 - blackout-date management inside the calendar workspace
 - appointment list
@@ -114,7 +115,7 @@ Branding is a first-class feature in this template.
 - font, color, and upload validation must remain server-side
   - fonts must come from the curated allowed list
   - colors must be valid 6-digit hex values
-  - text/background contrast must stay readable
+  - contrast issues should surface as human-readable warnings when the product allows admin override
   - file type and file size must be validated per asset kind
 - prefer semantic theme tokens over raw hex usage in components
   - use the shared background / surface / card / border / accent / highlight tokens
@@ -123,12 +124,22 @@ Branding is a first-class feature in this template.
   - prefer the shared helpers in `app/globals.css` such as `brand-accent-fill`, `brand-accent-outline`, `brand-on-accent`, and `brand-on-accent-muted`
   - prefer `bg-highlight-surface text-highlight-foreground` for highlight-toned notices and cards
   - do not assume dark text will remain readable on admin-selected brand colors
+- branding admin saves should stay in place instead of bouncing through redirect notices
+  - prefer structured server-action state for `/admin/branding`
+  - keep success/error feedback close to the save button
+  - avoid leaking framework redirect errors like `NEXT_REDIRECT` into the UI
 
 ## Admin workspace rules
 The admin workspace now has a few concrete patterns that should be extended instead of replaced:
 
 - `app/admin/page.tsx` redirects to `/admin/calendar`, so calendar is the primary admin landing workspace
 - use `AdminPageIntro`, `AdminNotice`, and `AdminEmptyState` from `app/admin/admin-ui.tsx` before creating new page shells
+- keep the admin workspace plain and operational
+  - prefer default admin typography over public display fonts
+  - keep decorative branding treatment inside previews or public pages, not the admin controls themselves
+  - extend the shared neutral admin primitives in `app/globals.css` and `app/admin/admin-ui.tsx` so Calendar, Staff, Appointments, Services, and Branding stay visually aligned
+  - when validation or save feedback appears in modal editors, prefer calm transitions over abrupt layout shifts
+  - respect reduced-motion preferences when adding admin-side transitions or animated feedback
 - services and staff pages are server entrypoints that fetch data, then pass control to client managers
   - `app/admin/services/services-manager.tsx`
   - `app/admin/staff/staff-manager.tsx`
@@ -206,7 +217,9 @@ Use these existing anchors before inventing new patterns:
   - `/admin/calendar`
   - `app/admin/calendar/`
   - `app/admin/actions.ts`
+  - `lib/business-hours.ts`
   - `lib/queries.ts`
+  - `BusinessHoursDay` stores weekday open/closed state while `BusinessHours` stores one or more Business periods for that weekday
   - keep `/admin/business-hours` and `/admin/blackout-dates` as compatibility redirects when those legacy paths still need to resolve
 - services and staff collection browsing:
   - `app/admin/services/services-manager.tsx`
