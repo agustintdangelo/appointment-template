@@ -54,6 +54,6 @@ Keep:
 - the core booking logic does not assume beauty-specific behavior
 - day-to-day demo adjustments can now happen through admin pages instead of seed edits alone
 - branding can be changed from `/admin/branding` without code edits
-- calendar-based scheduling adjustments, blackout rules, and business hours can be managed from `/admin/calendar`
+- calendar-based scheduling adjustments, blackout rules, and Business periods can be managed from `/admin/calendar`
 - logos and favicon are stored in the database and served through the app
 - if a new vertical needs different durations, buffers, schedules, branding, or demo copy, prefer seed/config updates over branching business logic

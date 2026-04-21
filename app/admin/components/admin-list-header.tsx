@@ -44,7 +44,7 @@ function HeaderSelect({
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-14 w-full appearance-none rounded-[1.35rem] border border-border bg-card px-4 pr-12 text-base font-semibold outline-none transition focus:border-accent"
+          className="admin-select admin-select-with-trailing-icon h-14 appearance-none text-base font-semibold"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -88,10 +88,10 @@ function HeaderIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-14 w-14 items-center justify-center rounded-[1.2rem] border transition ${
+      className={`flex h-14 w-14 items-center justify-center rounded-[1rem] border transition ${
         isActive
-          ? "border-accent bg-accent/10 text-accent"
-          : "border-border bg-card text-muted hover:border-accent hover:text-accent"
+          ? "border-slate-400 bg-slate-100 text-slate-900"
+          : "border-slate-300 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-900"
       }`}
     >
       {children}
@@ -208,7 +208,7 @@ export default function AdminListHeader({
   filtersLabel = "Filters",
 }: AdminListHeaderProps) {
   return (
-    <section className="rounded-[2rem] border border-border bg-surface/95 p-6 shadow-[0_24px_70px_-55px_rgba(34,29,24,0.35)]">
+    <section className="admin-panel p-6">
       <div className="grid gap-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(18rem,1fr)_minmax(24rem,1fr)] xl:items-end">
           <label className="grid gap-2 text-sm font-medium">
@@ -234,7 +234,7 @@ export default function AdminListHeader({
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-14 w-full rounded-[1.65rem] border border-border bg-card pl-14 pr-4 text-base outline-none transition focus:border-accent"
+                className="admin-input admin-input-with-leading-icon h-14 rounded-[1rem] text-base"
               />
             </div>
           </label>

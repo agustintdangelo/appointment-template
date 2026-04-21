@@ -10,6 +10,7 @@ import {
 } from "@/app/admin/actions";
 import AdminListHeader from "@/app/admin/components/admin-list-header";
 import CardGrid from "@/app/admin/components/card-grid";
+import CollectionViewTransition from "@/app/admin/components/collection-view-transition";
 import {
   initialAdminEntityActionState,
   type AdminCollectionSort,
@@ -85,7 +86,7 @@ function FormErrorText({ error }: { error?: string }) {
     return null;
   }
 
-  return <p className="text-sm text-highlight">{error}</p>;
+  return <p className="text-sm text-rose-700">{error}</p>;
 }
 
 function EditIconButton({
@@ -101,7 +102,7 @@ function EditIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted transition hover:border-accent hover:text-accent"
+      className="admin-icon-button"
     >
       <svg
         aria-hidden="true"
@@ -128,7 +129,7 @@ function SaveStaffButton({ isEditing }: { isEditing: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className="brand-accent-fill rounded-full px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+      className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save staff member" : "Create staff member"}
     </button>
@@ -142,7 +143,7 @@ function DeleteStaffButton({ disabled }: { disabled: boolean }) {
     <button
       type="submit"
       disabled={pending || disabled}
-      className="rounded-full border border-border px-5 py-3 text-sm font-semibold transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+      className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Deleting..." : "Delete staff member"}
     </button>
@@ -180,7 +181,7 @@ function StaffModalForm({
         <input type="hidden" name="staffMemberId" defaultValue={staffMember?.id ?? ""} />
 
         {saveState.status === "error" && saveState.message ? (
-          <div className="rounded-[1.5rem] border border-highlight bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
+          <div className="admin-error-banner">
             {saveState.message}
           </div>
         ) : null}
@@ -192,7 +193,7 @@ function StaffModalForm({
             required
             autoFocus
             defaultValue={staffMember?.name ?? ""}
-            className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+            className="admin-input"
           />
           <FormErrorText error={saveState.fieldErrors.name} />
         </label>
@@ -201,20 +202,20 @@ function StaffModalForm({
           <label className="grid gap-2 text-sm font-medium">
             Slug
             <input
-              name="slug"
-              defaultValue={staffMember?.slug ?? ""}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
+            name="slug"
+            defaultValue={staffMember?.slug ?? ""}
+            className="admin-input"
+          />
             <FormErrorText error={saveState.fieldErrors.slug} />
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
             Title
             <input
-              name="title"
-              defaultValue={staffMember?.title ?? ""}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
+            name="title"
+            defaultValue={staffMember?.title ?? ""}
+            className="admin-input"
+          />
             <FormErrorText error={saveState.fieldErrors.title} />
           </label>
         </div>
@@ -225,7 +226,7 @@ function StaffModalForm({
             name="bio"
             rows={5}
             defaultValue={staffMember?.bio ?? ""}
-            className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+            className="admin-textarea"
           />
           <FormErrorText error={saveState.fieldErrors.bio} />
         </label>
@@ -240,7 +241,7 @@ function StaffModalForm({
               step="1"
               required
               defaultValue={staffMember?.sortOrder ?? 0}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+              className="admin-input"
             />
             <FormErrorText error={saveState.fieldErrors.sortOrder} />
           </label>
@@ -250,7 +251,7 @@ function StaffModalForm({
               type="checkbox"
               name="isActive"
               defaultChecked={staffMember ? staffMember.isActive : true}
-              className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+              className="admin-checkbox"
             />
             Active and assignable
           </label>
@@ -261,7 +262,7 @@ function StaffModalForm({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-border px-5 py-3 text-sm font-semibold transition hover:bg-surface"
+            className="admin-button-secondary"
           >
             Cancel
           </button>
@@ -269,7 +270,7 @@ function StaffModalForm({
       </form>
 
       {staffMember ? (
-        <div className="rounded-[1.5rem] border border-border bg-surface/70 px-5 py-4">
+        <div className="admin-muted-panel px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
@@ -287,7 +288,7 @@ function StaffModalForm({
           </div>
 
           {deleteState.status === "error" && deleteState.message ? (
-            <p className="mt-3 text-sm text-highlight">{deleteState.message}</p>
+            <p className="mt-3 text-sm text-rose-700">{deleteState.message}</p>
           ) : null}
 
           {!canDelete ? (
@@ -306,9 +307,9 @@ function AddStaffCard({ onCreate }: { onCreate: () => void }) {
     <button
       type="button"
       onClick={onCreate}
-      className="group flex min-h-[22rem] flex-col items-start justify-between rounded-[1.9rem] border border-dashed border-border bg-card/80 p-6 text-left shadow-[0_24px_70px_-55px_rgba(34,29,24,0.35)] transition hover:border-accent hover:bg-card"
+      className="admin-card-dashed group flex min-h-[20rem] flex-col items-start justify-between p-6 text-left transition hover:border-slate-400 hover:bg-slate-50"
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-muted transition group-hover:border-accent group-hover:text-accent">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-slate-50 text-muted transition group-hover:border-slate-400 group-hover:text-slate-900">
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"
@@ -325,7 +326,7 @@ function AddStaffCard({ onCreate }: { onCreate: () => void }) {
       </div>
 
       <div>
-        <p className="font-display text-3xl">Add staff</p>
+        <p className="text-xl font-semibold text-slate-900">Add staff</p>
         <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
           Create a new staff member directly from the roster instead of using a separate header button.
         </p>
@@ -342,10 +343,10 @@ function StaffCard({
   onEdit: (staffMember: StaffRecord) => void;
 }) {
   return (
-    <article className="rounded-[1.9rem] border border-border bg-card/95 p-6 shadow-[0_24px_70px_-55px_rgba(34,29,24,0.35)]">
+    <article className="admin-card p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-display text-3xl">{staffMember.name}</p>
+          <p className="text-xl font-semibold text-slate-900">{staffMember.name}</p>
           <p className="mt-2 text-sm text-muted">{staffMember.title ?? "No title set"}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -380,7 +381,7 @@ function AddStaffListRow({ onCreate }: { onCreate: () => void }) {
     <button
       type="button"
       onClick={onCreate}
-      className="flex w-full flex-col gap-3 px-5 py-5 text-left transition hover:bg-surface/70"
+      className="flex w-full flex-col gap-3 px-5 py-5 text-left transition hover:bg-slate-50"
     >
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-border bg-surface text-muted">
@@ -399,7 +400,7 @@ function AddStaffListRow({ onCreate }: { onCreate: () => void }) {
           </svg>
         </span>
         <div>
-          <p className="font-display text-2xl">Add staff</p>
+          <p className="text-lg font-semibold text-slate-900">Add staff</p>
           <p className="mt-1 text-sm text-muted">Create a new roster entry</p>
         </div>
       </div>
@@ -418,7 +419,7 @@ function StaffListRow({
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="font-display text-2xl">{staffMember.name}</p>
+          <p className="text-lg font-semibold text-slate-900">{staffMember.name}</p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
             {staffMember.isActive ? "Active" : "Inactive"}
           </span>
@@ -454,13 +455,13 @@ function EmptyResults({
   onAction: () => void;
 }) {
   return (
-    <div className="rounded-[1.75rem] border border-dashed border-border bg-card/90 px-6 py-10 text-center">
-      <h2 className="font-display text-3xl">{title}</h2>
+    <div className="admin-card-dashed px-6 py-10 text-center">
+      <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
       <p className="mt-3 text-sm leading-7 text-muted">{description}</p>
       <button
         type="button"
         onClick={onAction}
-        className="mt-5 rounded-full border border-border px-4 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent"
+        className="admin-button-secondary mt-5"
       >
         {actionLabel}
       </button>
@@ -522,7 +523,7 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="font-semibold text-accent transition hover:text-accent-strong"
+                className="admin-link"
               >
                 Clear filters
               </button>
@@ -538,29 +539,36 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
           actionLabel="Reset filters"
           onAction={resetFilters}
         />
-      ) : viewMode === "cards" ? (
-        <CardGrid>
-          <AddStaffCard key="create-staff" onCreate={() => setIsCreateModalOpen(true)} />
-          {visibleStaffMembers.map((staffMember) => (
-            <StaffCard
-              key={staffMember.id}
-              staffMember={staffMember}
-              onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
-            />
-          ))}
-        </CardGrid>
       ) : (
-        <ListView>
-          <AddStaffListRow key="create-staff-row" onCreate={() => setIsCreateModalOpen(true)} />
-          {visibleStaffMembers.map((staffMember) => (
-            <div key={staffMember.id} className="border-t border-border">
-              <StaffListRow
-                staffMember={staffMember}
-                onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
-              />
-            </div>
-          ))}
-        </ListView>
+        <CollectionViewTransition
+          viewMode={viewMode}
+          transitionKey={`${viewMode}:${sortValue}`}
+          cards={
+            <CardGrid>
+              <AddStaffCard key="create-staff" onCreate={() => setIsCreateModalOpen(true)} />
+              {visibleStaffMembers.map((staffMember) => (
+                <StaffCard
+                  key={staffMember.id}
+                  staffMember={staffMember}
+                  onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                />
+              ))}
+            </CardGrid>
+          }
+          list={
+            <ListView>
+              <AddStaffListRow key="create-staff-row" onCreate={() => setIsCreateModalOpen(true)} />
+              {visibleStaffMembers.map((staffMember) => (
+                <div key={staffMember.id} className="border-t border-border">
+                  <StaffListRow
+                    staffMember={staffMember}
+                    onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                  />
+                </div>
+              ))}
+            </ListView>
+          }
+        />
       )}
 
       <CreateEntityModal

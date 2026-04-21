@@ -23,7 +23,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - branding customization
 - service CRUD
 - staff CRUD
-- business hours management inside the calendar workspace
+- business hours management inside the calendar workspace, including multiple Business periods per day, preserved closed-day periods, and copy-to-days editing
 - blackout date management inside the calendar workspace
 - seeded admin user record for future auth work
 
@@ -39,7 +39,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - implemented: admin-managed branding settings for public pages
 - implemented: service CRUD with card/list browsing and modal create/edit
 - implemented: staff CRUD with card/list browsing and modal create/edit
-- implemented: integrated business-hours editing inside the calendar workspace
+- implemented: integrated multi-period business-hours editing inside the calendar workspace with strict inline validation and copy-to-days support
 - implemented: integrated blackout browsing plus modal create/edit/delete inside the calendar workspace
 - not implemented yet: admin login
 - not implemented yet: appointment status update UI

@@ -1,44 +1,37 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { upsertBrandingAction } from "@/app/admin/actions";
+import type {
+  BrandingActionState,
+  BrandingAssetPreview,
+  BrandingFormAsset,
+} from "@/app/admin/branding/branding-types";
 import {
   buildBrandingCssVariables,
-  getBrandAssetConfigs,
+  brandAssetKinds,
   getBrandAssetFieldName,
   getBrandAssetRemoveFieldName,
   getBrandFontOptionsByCategory,
+  getBrandingWarnings,
   normalizeHexColor,
   type BrandAssetKindValue,
   type BrandingSettings,
 } from "@/lib/branding";
 
-type AssetPreview = {
-  kind: BrandAssetKindValue;
-  label: string;
-  description: string;
-  accept: string;
-  maxSizeBytes: number;
-  currentAsset: {
-    url: string;
-    originalFilename: string;
-    mimeType: string;
-    sizeBytes: number;
-  } | null;
-};
-
 type BrandingFormProps = {
   businessName: string;
   businessDescription: string | null;
   initialBranding: BrandingSettings;
-  assets: AssetPreview[];
+  assets: BrandingFormAsset[];
 };
 
 type FileState = Record<BrandAssetKindValue, File | null>;
 type FileUrlState = Record<BrandAssetKindValue, string | null>;
 type RemoveState = Record<BrandAssetKindValue, boolean>;
+type FileInputVersionState = Record<BrandAssetKindValue, number>;
+type PersistedAssetsState = Record<BrandAssetKindValue, BrandingAssetPreview | null>;
 
 const emptyFileState: FileState = {
   LOGO: null,
@@ -58,6 +51,39 @@ const emptyRemoveState: RemoveState = {
   FAVICON: false,
 };
 
+const emptyFileInputVersionState: FileInputVersionState = {
+  LOGO: 0,
+  LOGO_ALT: 0,
+  FAVICON: 0,
+};
+
+function buildPersistedAssetsState(assets: BrandingFormAsset[]): PersistedAssetsState {
+  const persistedAssets: PersistedAssetsState = {
+    LOGO: null,
+    LOGO_ALT: null,
+    FAVICON: null,
+  };
+
+  for (const asset of assets) {
+    persistedAssets[asset.kind] = asset.currentAsset;
+  }
+
+  return persistedAssets;
+}
+
+function buildInitialSaveState(
+  initialBranding: BrandingSettings,
+  assets: BrandingFormAsset[],
+): BrandingActionState {
+  return {
+    status: "idle",
+    message: null,
+    fieldErrors: {},
+    savedBranding: initialBranding,
+    savedAssets: buildPersistedAssetsState(assets),
+  };
+}
+
 function formatFileSize(sizeBytes: number) {
   if (sizeBytes >= 1024 * 1024) {
     return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
@@ -66,11 +92,91 @@ function formatFileSize(sizeBytes: number) {
   return `${Math.round(sizeBytes / 1024)} KB`;
 }
 
+function FormErrorText({ error }: { error?: string }) {
+  if (!error) {
+    return null;
+  }
+
+  return <p className="text-sm text-rose-700">{error}</p>;
+}
+
+function WarningList({ warnings }: { warnings: ReturnType<typeof getBrandingWarnings> }) {
+  if (warnings.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="admin-warning-banner">
+      <p className="font-medium">Contrast warning</p>
+      <ul className="mt-2 grid gap-2">
+        {warnings.map((warning) => (
+          <li key={warning.id}>{warning.message}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-current/90">
+        You can still save this branding. These warnings are guidance only.
+      </p>
+    </div>
+  );
+}
+
+function SaveBrandingButton({
+  isSaved,
+  pending,
+}: {
+  isSaved: boolean;
+  pending: boolean;
+}) {
+  const buttonLabel = pending ? "Saving..." : isSaved ? "Saved" : "Save branding";
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={`relative inline-grid h-11 min-w-[11rem] place-items-center rounded-full px-6 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-70 ${
+        isSaved
+          ? "bg-emerald-600 text-white hover:bg-emerald-600"
+          : "bg-slate-900 text-white hover:bg-slate-800"
+      }`}
+    >
+      <span className="invisible">Save branding</span>
+      <span className="absolute inset-0 flex items-center justify-center">{buttonLabel}</span>
+    </button>
+  );
+}
+
+function SaveBrandingStatus({
+  isSaved,
+  pending,
+  errorMessage,
+}: {
+  isSaved: boolean;
+  pending: boolean;
+  errorMessage?: string | null;
+}) {
+  return (
+    <p
+      aria-live="polite"
+      className={`text-sm transition-colors ${
+        errorMessage ? "text-rose-700" : isSaved ? "text-emerald-700" : "text-muted"
+      }`}
+    >
+      {errorMessage
+        ? errorMessage
+        : pending
+          ? "Saving branding changes..."
+          : isSaved
+            ? "Saved. Public pages will use this branding on the next request."
+            : "Saving stays on this page, so your position and preview remain in place."}
+    </p>
+  );
+}
+
 function getCurrentAssetUrl(
   kind: BrandAssetKindValue,
   files: FileUrlState,
   removeState: RemoveState,
-  currentAssets: Map<BrandAssetKindValue, AssetPreview["currentAsset"]>,
+  persistedAssets: PersistedAssetsState,
 ) {
   if (files[kind]) {
     return files[kind];
@@ -80,7 +186,25 @@ function getCurrentAssetUrl(
     return null;
   }
 
-  return currentAssets.get(kind)?.url ?? null;
+  return persistedAssets[kind]?.url ?? null;
+}
+
+function buildErrorState(
+  message: string,
+  savedBranding: BrandingSettings,
+  savedAssets: PersistedAssetsState,
+): BrandingActionState {
+  return {
+    status: "error",
+    message,
+    fieldErrors: {},
+    savedBranding,
+    savedAssets,
+  };
+}
+
+function hasUploadedFile(entry: FormDataEntryValue | null) {
+  return entry instanceof File && entry.size > 0;
 }
 
 export default function BrandingForm({
@@ -89,6 +213,11 @@ export default function BrandingForm({
   initialBranding,
   assets,
 }: BrandingFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [saveState, setSaveState] = useState<BrandingActionState>(() =>
+    buildInitialSaveState(initialBranding, assets),
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [primaryFont, setPrimaryFont] = useState(initialBranding.primaryFont);
   const [secondaryFont, setSecondaryFont] = useState(initialBranding.secondaryFont);
   const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor);
@@ -98,6 +227,8 @@ export default function BrandingForm({
   const [selectedFiles, setSelectedFiles] = useState<FileState>(emptyFileState);
   const [fileUrls, setFileUrls] = useState<FileUrlState>(emptyFileUrlState);
   const [removeState, setRemoveState] = useState<RemoveState>(emptyRemoveState);
+  const [fileInputVersions, setFileInputVersions] =
+    useState<FileInputVersionState>(emptyFileInputVersionState);
 
   useEffect(() => {
     return () => {
@@ -109,15 +240,13 @@ export default function BrandingForm({
     };
   }, [fileUrls]);
 
-  const currentAssets = new Map<BrandAssetKindValue, AssetPreview["currentAsset"]>();
+  const persistedBranding = saveState.savedBranding ?? initialBranding;
+  const persistedAssets = saveState.savedAssets ?? buildPersistedAssetsState(assets);
 
-  for (const asset of assets) {
-    currentAssets.set(asset.kind, asset.currentAsset);
-  }
-  const logoUrl = getCurrentAssetUrl("LOGO", fileUrls, removeState, currentAssets);
+  const logoUrl = getCurrentAssetUrl("LOGO", fileUrls, removeState, persistedAssets);
   const alternateLogoUrl =
-    getCurrentAssetUrl("LOGO_ALT", fileUrls, removeState, currentAssets) ?? logoUrl;
-  const faviconUrl = getCurrentAssetUrl("FAVICON", fileUrls, removeState, currentAssets);
+    getCurrentAssetUrl("LOGO_ALT", fileUrls, removeState, persistedAssets) ?? logoUrl;
+  const faviconUrl = getCurrentAssetUrl("FAVICON", fileUrls, removeState, persistedAssets);
   const previewStyle = buildBrandingCssVariables({
     primaryFont,
     secondaryFont,
@@ -126,6 +255,68 @@ export default function BrandingForm({
     backgroundColor,
     textColor,
   });
+  const contrastWarnings = getBrandingWarnings({
+    primaryFont,
+    secondaryFont,
+    primaryColor,
+    secondaryColor,
+    backgroundColor,
+    textColor,
+  });
+  const isDirty =
+    primaryFont !== persistedBranding.primaryFont ||
+    secondaryFont !== persistedBranding.secondaryFont ||
+    primaryColor !== persistedBranding.primaryColor ||
+    secondaryColor !== persistedBranding.secondaryColor ||
+    backgroundColor !== persistedBranding.backgroundColor ||
+    textColor !== persistedBranding.textColor ||
+    Object.values(selectedFiles).some((file) => file !== null) ||
+    Object.values(removeState).some(Boolean);
+  const isSaved = saveState.status === "success" && !isDirty;
+
+  function bumpFileInputVersions(kinds: readonly BrandAssetKindValue[]) {
+    setFileInputVersions((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        nextValue[kind] += 1;
+      }
+
+      return nextValue;
+    });
+  }
+
+  function clearTransientFileSelections(
+    kinds: readonly BrandAssetKindValue[] = brandAssetKinds,
+  ) {
+    setSelectedFiles((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        nextValue[kind] = null;
+      }
+
+      return nextValue;
+    });
+
+    setFileUrls((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        const currentUrl = currentValue[kind];
+
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl);
+        }
+
+        nextValue[kind] = null;
+      }
+
+      return nextValue;
+    });
+
+    bumpFileInputVersions(kinds);
+  }
 
   function handleFileChange(kind: BrandAssetKindValue, nextFile: File | null) {
     setSelectedFiles((currentValue) => ({
@@ -160,50 +351,123 @@ export default function BrandingForm({
     }));
 
     if (checked) {
-      setSelectedFiles((currentValue) => ({
-        ...currentValue,
-        [kind]: null,
-      }));
-      setFileUrls((currentValue) => {
-        const currentUrl = currentValue[kind];
+      clearTransientFileSelections([kind]);
+    }
+  }
 
-        if (currentUrl) {
-          URL.revokeObjectURL(currentUrl);
-        }
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-        return {
-          ...currentValue,
-          [kind]: null,
-        };
+    if (isSubmitting || !formRef.current) {
+      return;
+    }
+
+    const nextFormData = new FormData(formRef.current);
+    const uploadedKinds = brandAssetKinds.filter((kind) =>
+      hasUploadedFile(nextFormData.get(getBrandAssetFieldName(kind))),
+    );
+    const removedKinds = brandAssetKinds.filter((kind) =>
+      nextFormData.get(getBrandAssetRemoveFieldName(kind)) === "on",
+    );
+
+    setIsSubmitting(true);
+    setSaveState((currentValue) => ({
+      ...currentValue,
+      status: "idle",
+      message: null,
+      fieldErrors: {},
+    }));
+
+    try {
+      const response = await fetch("/api/admin/branding", {
+        method: "POST",
+        body: nextFormData,
       });
+      const result = (await response.json()) as BrandingActionState;
+      const nextSavedBranding = result.savedBranding ?? persistedBranding;
+      const nextSavedAssets = result.savedAssets ?? persistedAssets;
+
+      if (result.status !== "success") {
+        setSaveState({
+          ...result,
+          savedBranding: nextSavedBranding,
+          savedAssets: nextSavedAssets,
+        });
+        return;
+      }
+
+      const missingUploadedKinds = uploadedKinds.filter((kind) => !nextSavedAssets[kind]);
+      const staleRemovedKinds = removedKinds.filter(
+        (kind) => !uploadedKinds.includes(kind) && nextSavedAssets[kind],
+      );
+
+      if (missingUploadedKinds.length > 0 || staleRemovedKinds.length > 0) {
+        setSaveState(
+          buildErrorState(
+            "Branding saved partially, but one or more asset updates did not stick yet. Your preview has been left in place so you can retry safely.",
+            nextSavedBranding,
+            nextSavedAssets,
+          ),
+        );
+        return;
+      }
+
+      setPrimaryFont(nextSavedBranding.primaryFont);
+      setSecondaryFont(nextSavedBranding.secondaryFont);
+      setPrimaryColor(nextSavedBranding.primaryColor);
+      setSecondaryColor(nextSavedBranding.secondaryColor);
+      setBackgroundColor(nextSavedBranding.backgroundColor);
+      setTextColor(nextSavedBranding.textColor);
+      setSaveState({
+        ...result,
+        savedBranding: nextSavedBranding,
+        savedAssets: nextSavedAssets,
+      });
+      clearTransientFileSelections();
+      setRemoveState({ ...emptyRemoveState });
+    } catch (error) {
+      setSaveState(
+        buildErrorState(
+          error instanceof Error ? error.message : "Unable to save branding.",
+          persistedBranding,
+          persistedAssets,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <form action={upsertBrandingAction} encType="multipart/form-data" className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] xl:items-start">
-      <input type="hidden" name="redirectTo" value="/admin/branding" />
-
-      <section className="grid gap-6">
-        <div className="rounded-[2rem] border border-border bg-card/95 p-7 shadow-[0_28px_70px_-50px_rgba(34,29,24,0.45)]">
-          <div className="border-b border-border pb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      encType="multipart/form-data"
+      className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] xl:items-start"
+    >
+      <section className="grid gap-5">
+        <div className="admin-panel p-6">
+          <div className="grid gap-2 border-b border-border pb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
               Typography
             </p>
-            <h2 className="mt-3 font-display text-3xl">Choose the brand voice in type.</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-              Pick a dependable primary font for interface text and a secondary font for headlines
-              and moments of emphasis.
+            <h2 className="text-xl font-semibold text-slate-900">Public font selection</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted">
+              Choose the fonts used on the customer-facing site. The admin editor stays on the
+              default admin typography.
             </p>
           </div>
 
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium">
               Primary font
               <select
                 name="primaryFont"
                 value={primaryFont}
-                onChange={(event) => setPrimaryFont(event.target.value as BrandingSettings["primaryFont"])}
-                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+                onChange={(event) =>
+                  setPrimaryFont(event.target.value as BrandingSettings["primaryFont"])
+                }
+                className="admin-select"
               >
                 {getBrandFontOptionsByCategory().map((group) => (
                   <optgroup key={group.category} label={group.category}>
@@ -215,6 +479,7 @@ export default function BrandingForm({
                   </optgroup>
                 ))}
               </select>
+              <FormErrorText error={saveState.fieldErrors.primaryFont} />
             </label>
 
             <label className="grid gap-2 text-sm font-medium">
@@ -225,7 +490,7 @@ export default function BrandingForm({
                 onChange={(event) =>
                   setSecondaryFont(event.target.value as BrandingSettings["secondaryFont"])
                 }
-                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+                className="admin-select"
               >
                 {getBrandFontOptionsByCategory().map((group) => (
                   <optgroup key={group.category} label={group.category}>
@@ -237,21 +502,22 @@ export default function BrandingForm({
                   </optgroup>
                 ))}
               </select>
+              <FormErrorText error={saveState.fieldErrors.secondaryFont} />
             </label>
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-border bg-card/95 p-7 shadow-[0_28px_70px_-50px_rgba(34,29,24,0.45)]">
-          <div className="border-b border-border pb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">Color</p>
-            <h2 className="mt-3 font-display text-3xl">Tune the core palette.</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-              The app derives surface, border, muted, and button contrast tokens from these values.
-              Save-time validation blocks low-contrast combinations.
+        <div className="admin-panel p-6">
+          <div className="grid gap-2 border-b border-border pb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Color</p>
+            <h2 className="text-xl font-semibold text-slate-900">Theme colors</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted">
+              These values drive the public theme tokens. If a combination looks risky, the editor
+              will warn you but it will still allow saving.
             </p>
           </div>
 
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
             {[
               {
                 label: "Primary color",
@@ -280,78 +546,79 @@ export default function BrandingForm({
             ].map((field) => (
               <div key={field.name} className="grid gap-2 text-sm font-medium">
                 <span>{field.label}</span>
-                <div className="grid gap-3 sm:grid-cols-[4.25rem_minmax(0,1fr)]">
+                <div className="grid gap-3 sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                   <input
                     type="color"
                     value={normalizeHexColor(field.value) ?? "#000000"}
                     onChange={(event) => field.setValue(event.target.value)}
-                    className="h-12 w-full rounded-2xl border border-border bg-surface px-1 py-1"
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-1 py-1"
                   />
                   <input
                     name={field.name}
                     value={field.value}
                     onChange={(event) => field.setValue(event.target.value)}
-                    className="rounded-2xl border border-border bg-surface px-4 py-3 font-mono uppercase outline-none transition focus:border-accent"
+                    className="admin-input font-mono uppercase"
                   />
                 </div>
+                <FormErrorText error={saveState.fieldErrors[field.name]} />
               </div>
             ))}
           </div>
+
+          <div className="mt-5">
+            <WarningList warnings={contrastWarnings} />
+          </div>
         </div>
 
-        <div className="rounded-[2rem] border border-border bg-card/95 p-7 shadow-[0_28px_70px_-50px_rgba(34,29,24,0.45)]">
-          <div className="border-b border-border pb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">Assets</p>
-            <h2 className="mt-3 font-display text-3xl">Upload the brand files.</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-              Logos and favicon are stored in the database and served through the app, so updates
-              stay attached to the business configuration.
+        <div className="admin-panel p-6">
+          <div className="grid gap-2 border-b border-border pb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Assets</p>
+            <h2 className="text-xl font-semibold text-slate-900">Logos and favicon</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted">
+              Uploaded files are stored with the business record and served back through the app.
             </p>
           </div>
 
-          <div className="mt-6 grid gap-5">
-            {getBrandAssetConfigs().map((assetConfig) => {
-              const asset = assets.find((entry) => entry.kind === assetConfig.kind);
+          <div className="mt-5 grid gap-4">
+            {assets.map((assetConfig) => {
               const selectedFile = selectedFiles[assetConfig.kind];
               const visiblePreview = getCurrentAssetUrl(
                 assetConfig.kind,
                 fileUrls,
                 removeState,
-                currentAssets,
+                persistedAssets,
               );
+              const persistedAsset = persistedAssets[assetConfig.kind];
 
               return (
-                <div
-                  key={assetConfig.kind}
-                  className="rounded-[1.5rem] border border-border bg-surface/80 p-5"
-                >
+                <div key={assetConfig.kind} className="admin-muted-panel p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+                    <div className="max-w-2xl">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
                         {assetConfig.label}
                       </p>
-                      <h3 className="mt-2 font-display text-2xl">{assetConfig.description}</h3>
-                      <p className="mt-2 text-sm text-muted">
-                        Allowed: {assetConfig.allowedMimeTypes.join(", ")}. Max size:{" "}
+                      <h3 className="mt-2 text-base font-semibold text-slate-900">
+                        {assetConfig.description}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        Allowed: {assetConfig.accept}. Max size:{" "}
                         {formatFileSize(assetConfig.maxSizeBytes)}.
                       </p>
                     </div>
 
-                    <div className="w-full max-w-xs rounded-[1.25rem] border border-border bg-card p-4">
+                    <div className="w-full max-w-xs rounded-xl border border-border bg-white p-4">
                       {visiblePreview ? (
-                        <div className="flex min-h-28 items-center justify-center rounded-[1rem] bg-white/70 p-4">
+                        <div className="flex min-h-28 items-center justify-center rounded-xl bg-slate-50 p-4">
                           <img
                             src={visiblePreview}
                             alt={`${assetConfig.label} preview`}
                             className={`object-contain ${
-                              assetConfig.kind === "FAVICON"
-                                ? "h-12 w-12"
-                                : "max-h-20 w-full"
+                              assetConfig.kind === "FAVICON" ? "h-12 w-12" : "max-h-20 w-full"
                             }`}
                           />
                         </div>
                       ) : (
-                        <div className="flex min-h-28 items-center justify-center rounded-[1rem] border border-dashed border-border bg-card text-sm text-muted">
+                        <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-border bg-slate-50 text-sm text-muted">
                           No active asset
                         </div>
                       )}
@@ -359,10 +626,10 @@ export default function BrandingForm({
                       <div className="mt-3 text-sm text-muted">
                         {selectedFile ? (
                           <p>Selected: {selectedFile.name}</p>
-                        ) : asset?.currentAsset ? (
+                        ) : persistedAsset ? (
                           <>
-                            <p>{asset.currentAsset.originalFilename}</p>
-                            <p>{formatFileSize(asset.currentAsset.sizeBytes)}</p>
+                            <p>{persistedAsset.originalFilename}</p>
+                            <p>{formatFileSize(persistedAsset.sizeBytes)}</p>
                           </>
                         ) : (
                           <p>No file uploaded yet.</p>
@@ -375,21 +642,22 @@ export default function BrandingForm({
                     <label className="grid gap-2 text-sm font-medium">
                       Upload replacement
                       <input
-                        key={`${assetConfig.kind}-${selectedFile?.name ?? "empty"}-${
-                          removeState[assetConfig.kind] ? "removed" : "kept"
-                        }`}
+                        key={`${assetConfig.kind}-${fileInputVersions[assetConfig.kind]}`}
                         type="file"
                         name={getBrandAssetFieldName(assetConfig.kind)}
                         accept={assetConfig.accept}
                         onChange={(event) =>
                           handleFileChange(assetConfig.kind, event.target.files?.[0] ?? null)
                         }
-                        className="brand-file-accent rounded-2xl border border-border bg-card px-4 py-3 text-sm outline-none transition file:mr-4 file:rounded-full file:border-0 file:px-4 file:py-2 file:font-semibold"
+                        className="admin-input px-3 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:font-semibold file:text-white"
+                      />
+                      <FormErrorText
+                        error={saveState.fieldErrors[getBrandAssetFieldName(assetConfig.kind)]}
                       />
                     </label>
 
-                    {asset?.currentAsset ? (
-                      <label className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium">
+                    {persistedAsset ? (
+                      <label className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium">
                         <input
                           type="checkbox"
                           name={getBrandAssetRemoveFieldName(assetConfig.kind)}
@@ -397,7 +665,7 @@ export default function BrandingForm({
                           onChange={(event) =>
                             toggleRemove(assetConfig.kind, event.target.checked)
                           }
-                          className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                          className="admin-checkbox"
                         />
                         Remove current asset
                       </label>
@@ -409,30 +677,28 @@ export default function BrandingForm({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            className="brand-accent-fill rounded-full px-6 py-3 text-sm font-semibold transition"
-          >
-            Save branding
-          </button>
-          <p className="self-center text-sm text-muted">
-            Changes apply to the public site immediately on the next request.
-          </p>
+        <div className="admin-panel p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <SaveBrandingButton isSaved={isSaved} pending={isSubmitting} />
+            <SaveBrandingStatus
+              isSaved={isSaved}
+              pending={isSubmitting}
+              errorMessage={saveState.status === "error" ? saveState.message : undefined}
+            />
+          </div>
         </div>
       </section>
 
       <aside className="xl:sticky xl:top-6">
-        <div className="rounded-[2rem] border border-border bg-card/95 p-6 shadow-[0_28px_70px_-50px_rgba(34,29,24,0.45)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">Preview</p>
-          <h2 className="mt-3 font-display text-3xl">See the active identity before saving.</h2>
-          <p className="mt-3 text-sm leading-7 text-muted">
-            This mockup uses the same token builder as the public layout, including the light and
-            dark logo surfaces.
+        <div className="admin-panel p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-900">Public site preview</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            This preview uses the same branding tokens and logo rules as the public layout.
           </p>
 
           <div
-            className="public-brand-shell mt-6 overflow-hidden rounded-[1.75rem] border border-border"
+            className="public-brand-shell mt-5 overflow-hidden rounded-[1.5rem] border border-border"
             style={previewStyle}
           >
             <div className="border-b border-border/80 bg-surface/90 px-5 py-4">
@@ -475,7 +741,7 @@ export default function BrandingForm({
                 </h3>
                 <p className="mt-4 text-sm leading-7 text-muted">
                   {businessDescription ??
-                    "Preview how your primary and secondary fonts, palette, and logos work together."}
+                    "Preview how your fonts, palette, and logos work together on the public site."}
                 </p>
                 <div className="mt-5 flex gap-3">
                   <span className="brand-accent-fill rounded-full px-4 py-2 text-sm font-semibold">
@@ -516,7 +782,7 @@ export default function BrandingForm({
                 </p>
               )}
               <p className="brand-on-accent-muted mt-3 text-sm leading-7">
-                Dark-surface preview for footer and any future accent-heavy public sections.
+                Dark-surface preview for footer and accent-heavy public sections.
               </p>
             </div>
           </div>

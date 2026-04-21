@@ -62,7 +62,7 @@ export default function CreateEntityModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative z-10 flex max-h-[min(92vh,58rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-border bg-card/98 shadow-[0_36px_110px_-55px_rgba(34,29,24,0.58)]"
+        className="admin-panel relative z-10 flex max-h-[min(92vh,58rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[1.25rem] bg-white/98"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="border-b border-border px-6 py-5 sm:px-7">
@@ -71,7 +71,7 @@ export default function CreateEntityModal({
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
                 {eyebrow}
               </p>
-              <h2 id={titleId} className="mt-3 font-display text-4xl">
+              <h2 id={titleId} className="mt-3 text-2xl font-semibold text-slate-900">
                 {title}
               </h2>
               <p id={descriptionId} className="mt-3 max-w-2xl text-sm leading-7 text-muted">
@@ -83,7 +83,7 @@ export default function CreateEntityModal({
               type="button"
               onClick={onClose}
               aria-label="Close dialog"
-              className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent"
+              className="admin-button-secondary"
             >
               Close
             </button>

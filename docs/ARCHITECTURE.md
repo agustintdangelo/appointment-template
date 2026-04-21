@@ -8,6 +8,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - BrandAsset
 - Service
 - StaffMember
+- BusinessHoursDay
 - BusinessHours
 - StaffAvailability
 - BlackoutDate
@@ -47,7 +48,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - `lib/booking.ts`
   - slot generation and confirmation-code logic
 - `lib/branding.ts`
-  - branding defaults, font catalog, color derivation, contrast validation, upload validation, and asset URLs
+  - branding defaults, font catalog, color derivation, contrast warnings, upload validation, and asset URLs
 - `lib/queries.ts`
   - read models for public and admin pages, including cached public branding reads
 - `lib/validation.ts`
@@ -76,8 +77,11 @@ A slot is available only if:
   - pages read the first business record from the database
 - staff selection is required during booking
   - keeps schedule computation explicit for MVP
-- business hours currently support one window per day
-  - staff availability supports multiple rows per day
+- business hours now support multiple Business periods per day
+  - `BusinessHoursDay` stores the open/closed state for each weekday
+  - `BusinessHours` stores one or more Business periods for the same weekday
+  - closed days keep their saved Business periods instead of deleting them
+  - staff availability continues to support multiple rows per day
 - slot generation uses 15-minute increments
 - appointment creation rechecks availability on the server before insert
 - admin CRUD uses server actions with redirect-and-revalidate flow
@@ -98,9 +102,12 @@ A slot is available only if:
   - the selected card/list view persists in `sessionStorage` per module
 - the admin calendar is now the primary scheduling surface
   - appointments and blackout dates are merged into one client-rendered calendar workspace
+  - shared neutral admin shell classes keep Calendar, Staff, Appointments, Services, and Branding visually separate from public branding
   - day / week / month navigation runs in local UI state while data still comes from the existing Prisma models
   - blackout creation, editing, and deletion reuse the existing blackout schema and persistence model through modal server actions
   - business hours now use the same modal edit pattern inside the calendar workspace instead of a standalone admin page
+  - business-hour editing replaces an entire day configuration at once so admins can add, remove, reorder, validate, and copy Business periods in one save
+  - real-time validation keeps incomplete, overlapping, out-of-order, and overnight Business periods from being saved
 
 ## Branding architecture
 
@@ -119,19 +126,22 @@ A slot is available only if:
   - reads branding once per request through a cached Prisma helper
   - applies CSS variables for the public site only
   - keeps the admin shell on default neutral styling
-- branding validation happens server-side in the admin action
+- branding validation happens server-side in the shared branding mutation helper
   - allowed font list is enforced
   - colors must be valid 6-digit hex values
-  - text/background contrast must be at least `4.5:1`
-  - primary/background contrast must be at least `3:1`
+  - text/background contrast under `4.5:1` is surfaced as a warning
+  - primary/background contrast under `3:1` is surfaced as a warning
   - upload MIME types and file sizes are restricted by asset kind
+  - branding saves return structured state instead of redirect notices so the editor can stay in place and show save feedback inline
 
 ## Upload handling
 
-- branding files are submitted through a standard multipart server action form
+- the admin branding form posts `multipart/form-data` to `/api/admin/branding`
+- the route handler reuses the shared branding mutation helper so validation, persistence, and saved-asset shaping stay in one place
 - validated files are stored in SQLite as `Bytes` / `BLOB`
 - assets are streamed back through `/api/brand-assets/[assetId]`
 - asset URLs include a version query derived from `updatedAt` so replacements bust browser cache cleanly
+- the public branding read model uses a tagged cache so layout and metadata can share one snapshot per render, and branding saves explicitly revalidate that tag
 
 ## Extension points
 In later versions this can extend into:

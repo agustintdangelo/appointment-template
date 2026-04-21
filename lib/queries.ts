@@ -1,35 +1,7 @@
-import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
+import { normalizeBusinessHoursDays } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
-import { dayOptions } from "@/lib/admin";
-
-function normalizeBusinessHoursEntries(
-  hours: Array<{
-    id: string;
-    dayOfWeek: number;
-    openTime: string;
-    closeTime: string;
-    isClosed: boolean;
-  }>,
-) {
-  const hoursByDay = new Map(hours.map((entry) => [entry.dayOfWeek, entry]));
-
-  return dayOptions.map((day) => {
-    const existingEntry = hoursByDay.get(day.value);
-
-    if (existingEntry) {
-      return existingEntry;
-    }
-
-    return {
-      id: `${day.value}`,
-      dayOfWeek: day.value,
-      openTime: "09:00",
-      closeTime: "17:00",
-      isClosed: day.value === 0,
-    };
-  });
-}
 
 export async function getPrimaryBusiness() {
   return prisma.business.findFirst({
@@ -74,35 +46,45 @@ export async function getPrimaryBusiness() {
   });
 }
 
-export const getPublicBranding = cache(async () => {
-  return prisma.business.findFirst({
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      description: true,
-      primaryFont: true,
-      secondaryFont: true,
-      primaryColor: true,
-      secondaryColor: true,
-      backgroundColor: true,
-      textColor: true,
-      brandAssets: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          id: true,
-          kind: true,
-          originalFilename: true,
-          mimeType: true,
-          sizeBytes: true,
-          updatedAt: true,
+const getCachedPublicBranding = unstable_cache(
+  async () => {
+    return prisma.business.findFirst({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        primaryFont: true,
+        secondaryFont: true,
+        primaryColor: true,
+        secondaryColor: true,
+        backgroundColor: true,
+        textColor: true,
+        brandAssets: {
+          orderBy: {
+            createdAt: "asc",
+          },
+          select: {
+            id: true,
+            kind: true,
+            originalFilename: true,
+            mimeType: true,
+            sizeBytes: true,
+            updatedAt: true,
+          },
         },
       },
-    },
-  });
-});
+    });
+  },
+  ["public-branding"],
+  {
+    tags: ["public-branding"],
+  },
+);
+
+export async function getPublicBranding() {
+  return getCachedPublicBranding();
+}
 
 export async function getAppointmentConfirmation(appointmentId: string) {
   return prisma.appointment.findUnique({
@@ -311,25 +293,37 @@ export async function getAdminBusinessHours() {
     return null;
   }
 
-  const hours = await prisma.businessHours.findMany({
-    where: {
-      businessId: business.id,
-    },
-    orderBy: {
-      dayOfWeek: "asc",
-    },
-    select: {
-      id: true,
-      dayOfWeek: true,
-      openTime: true,
-      closeTime: true,
-      isClosed: true,
-    },
-  });
+  const [businessHourDays, businessHours] = await Promise.all([
+    prisma.businessHoursDay.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: {
+        dayOfWeek: "asc",
+      },
+      select: {
+        id: true,
+        dayOfWeek: true,
+        isClosed: true,
+      },
+    }),
+    prisma.businessHours.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: [{ dayOfWeek: "asc" }, { openTime: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
+        openTime: true,
+        closeTime: true,
+      },
+    }),
+  ]);
 
   return {
     business,
-    businessHours: normalizeBusinessHoursEntries(hours),
+    businessHours: normalizeBusinessHoursDays(businessHourDays, businessHours),
   };
 }
 
@@ -340,7 +334,7 @@ export async function getAdminCalendar() {
     return null;
   }
 
-  const [staffMembers, businessHours, appointments, blackoutDates] = await Promise.all([
+  const [staffMembers, businessHourDays, businessHours, appointments, blackoutDates] = await Promise.all([
     prisma.staffMember.findMany({
       where: {
         businessId: business.id,
@@ -364,7 +358,7 @@ export async function getAdminCalendar() {
         },
       },
     }),
-    prisma.businessHours.findMany({
+    prisma.businessHoursDay.findMany({
       where: {
         businessId: business.id,
       },
@@ -374,9 +368,19 @@ export async function getAdminCalendar() {
       select: {
         id: true,
         dayOfWeek: true,
+        isClosed: true,
+      },
+    }),
+    prisma.businessHours.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: [{ dayOfWeek: "asc" }, { openTime: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
         openTime: true,
         closeTime: true,
-        isClosed: true,
       },
     }),
     prisma.appointment.findMany({
@@ -432,7 +436,7 @@ export async function getAdminCalendar() {
   return {
     business,
     staffMembers,
-    businessHours: normalizeBusinessHoursEntries(businessHours),
+    businessHours: normalizeBusinessHoursDays(businessHourDays, businessHours),
     appointments,
     blackoutDates,
   };

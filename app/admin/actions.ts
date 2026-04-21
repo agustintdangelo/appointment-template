@@ -2,17 +2,16 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import type { BrandingActionState } from "@/app/admin/branding/branding-types";
 import type { AdminEntityActionState } from "@/app/admin/components/admin-collection-types";
 import {
-  brandAssetKinds,
-  getBrandAssetFieldName,
-  getBrandAssetRemoveFieldName,
-  readValidatedBrandAssetUpload,
-  validateBrandingSettings,
-} from "@/lib/branding";
+  MAX_BUSINESS_PERIODS_PER_DAY,
+  sortBusinessPeriods,
+  validateBusinessPeriods,
+} from "@/lib/business-hours";
+import { saveBrandingFromFormData } from "@/lib/branding-admin";
 import {
   getFormCheckbox,
   getFormString,
@@ -20,41 +19,6 @@ import {
   slugify,
 } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
-
-function buildRedirectUrl(
-  path: string,
-  tone: "success" | "error",
-  message: string,
-) {
-  const [pathname, queryString = ""] = path.split("?");
-  const params = new URLSearchParams(queryString);
-  params.set("tone", tone);
-  params.set("message", message);
-
-  return `${pathname}?${params.toString()}`;
-}
-
-function redirectWithNotice(
-  path: string,
-  tone: "success" | "error",
-  message: string,
-): never {
-  redirect(buildRedirectUrl(path, tone, message));
-}
-
-function getRedirectPath(
-  formData: FormData,
-  fallbackPath: string,
-  key: string = "redirectTo",
-) {
-  const requestedPath = getOptionalFormString(formData.get(key));
-
-  if (!requestedPath || !requestedPath.startsWith("/") || requestedPath.startsWith("//")) {
-    return fallbackPath;
-  }
-
-  return requestedPath;
-}
 
 async function getAdminBusinessId() {
   const business = await prisma.business.findFirst({
@@ -64,35 +28,21 @@ async function getAdminBusinessId() {
   });
 
   if (!business) {
-    redirectWithNotice("/admin/appointments", "error", "Seed the database before managing records.");
+    throw new Error("Seed the database before managing records.");
   }
 
   return business.id;
-}
-
-function handleMutationError(path: string, error: unknown, fallbackMessage: string): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    redirectWithNotice(path, "error", fallbackMessage);
-  }
-
-  if (error instanceof z.ZodError) {
-    redirectWithNotice(path, "error", error.issues[0]?.message ?? fallbackMessage);
-  }
-
-  if (error instanceof Error) {
-    redirectWithNotice(path, "error", error.message);
-  }
-
-  redirectWithNotice(path, "error", fallbackMessage);
 }
 
 function buildFieldErrors(error: z.ZodError) {
   const fieldErrors: Record<string, string> = {};
 
   for (const issue of error.issues) {
-    const path = issue.path[0];
+    const path = issue.path
+      .map((segment) => (typeof segment === "number" ? String(segment) : segment))
+      .join(".");
 
-    if (typeof path === "string" && !fieldErrors[path]) {
+    if (path && !fieldErrors[path]) {
       fieldErrors[path] = issue.message;
     }
   }
@@ -141,6 +91,32 @@ function revalidateAdminPaths(paths: string[]) {
   }
 }
 
+function buildBusinessPeriodFieldErrors(
+  validation: ReturnType<typeof validateBusinessPeriods>,
+) {
+  const fieldErrors: Record<string, string> = {};
+
+  if (validation.formError) {
+    fieldErrors.periods = validation.formError;
+  }
+
+  validation.rowErrors.forEach((rowError, index) => {
+    if (rowError.openTime) {
+      fieldErrors[`periods.${index}.openTime`] = rowError.openTime;
+    }
+
+    if (rowError.closeTime) {
+      fieldErrors[`periods.${index}.closeTime`] = rowError.closeTime;
+    }
+
+    if (rowError.messages.length > 0) {
+      fieldErrors[`periods.${index}.row`] = rowError.messages[0];
+    }
+  });
+
+  return fieldErrors;
+}
+
 const serviceSchema = z.object({
   serviceId: z.string().optional(),
   name: z.string().trim().min(2, "Service name is required."),
@@ -169,22 +145,22 @@ const staffSchema = z.object({
   isActive: z.boolean(),
 });
 
-const businessHoursSchema = z
-  .object({
-    dayOfWeek: z.coerce.number().int().min(0).max(6),
-    openTime: z.string().regex(/^\d{2}:\d{2}$/, "Opening time must use HH:MM."),
-    closeTime: z.string().regex(/^\d{2}:\d{2}$/, "Closing time must use HH:MM."),
-    isClosed: z.boolean(),
-  })
-  .superRefine((value, context) => {
-    if (!value.isClosed && value.closeTime <= value.openTime) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Closing time must be after opening time.",
-        path: ["closeTime"],
-      });
-    }
-  });
+const businessPeriodSchema = z.object({
+  openTime: z.string(),
+  closeTime: z.string(),
+});
+
+const businessHoursSchema = z.object({
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  isClosed: z.boolean(),
+  periods: z
+    .array(businessPeriodSchema)
+    .max(
+      MAX_BUSINESS_PERIODS_PER_DAY,
+      `You can add up to ${MAX_BUSINESS_PERIODS_PER_DAY} Business periods per day.`,
+    ),
+  copyToDayOfWeek: z.array(z.coerce.number().int().min(0).max(6)).default([]),
+});
 
 const blackoutSchema = z
   .object({
@@ -228,15 +204,6 @@ const blackoutSchema = z
       });
     }
   });
-
-const brandingSchema = z.object({
-  primaryFont: z.string().trim().min(1, "Primary font is required."),
-  secondaryFont: z.string().trim().min(1, "Secondary font is required."),
-  primaryColor: z.string().trim().min(1, "Primary color is required."),
-  secondaryColor: z.string().trim().min(1, "Secondary color is required."),
-  backgroundColor: z.string().trim().min(1, "Background color is required."),
-  textColor: z.string().trim().min(1, "Text color is required."),
-});
 
 export async function upsertServiceAction(
   _previousState: AdminEntityActionState,
@@ -476,36 +443,103 @@ export async function upsertBusinessHoursAction(
 ): Promise<AdminEntityActionState> {
   try {
     const businessId = await getAdminBusinessId();
+    const openTimes = formData.getAll("openTime").map((value) => getFormString(value));
+    const closeTimes = formData.getAll("closeTime").map((value) => getFormString(value));
+    const periods = openTimes.map((openTime, index) => ({
+      openTime,
+      closeTime: closeTimes[index] ?? "",
+    }));
     const parsedInput = businessHoursSchema.parse({
       dayOfWeek: getFormString(formData.get("dayOfWeek")),
-      openTime: getFormString(formData.get("openTime")),
-      closeTime: getFormString(formData.get("closeTime")),
       isClosed: getFormCheckbox(formData, "isClosed"),
+      periods,
+      copyToDayOfWeek: formData
+        .getAll("copyToDayOfWeek")
+        .map((value) => getFormString(value))
+        .filter(Boolean),
+    });
+    const validatedPeriods = validateBusinessPeriods({
+      periods: parsedInput.periods,
+      isClosed: parsedInput.isClosed,
     });
 
-    await prisma.businessHours.upsert({
-      where: {
-        businessId_dayOfWeek: {
+    if (validatedPeriods.hasErrors) {
+      const fieldErrors = buildBusinessPeriodFieldErrors(validatedPeriods);
+
+      return buildEntityActionState(
+        "error",
+        validatedPeriods.formError ?? Object.values(fieldErrors)[0] ?? "Unable to update business hours.",
+        fieldErrors,
+      );
+    }
+
+    const copyToDayOfWeek = [...new Set(parsedInput.copyToDayOfWeek)].filter(
+      (dayOfWeek) => dayOfWeek !== parsedInput.dayOfWeek,
+    );
+
+    if (copyToDayOfWeek.length > 0 && (parsedInput.isClosed || validatedPeriods.sortedPeriods.length === 0)) {
+      return buildEntityActionState("error", "Copying Business periods requires at least 1 active Business period.", {
+        copyToDayOfWeek:
+          "Reopen this day and keep at least 1 valid Business period before copying to other days.",
+      });
+    }
+
+    const sortedPeriods = sortBusinessPeriods(validatedPeriods.sortedPeriods);
+
+    await prisma.$transaction(async (transaction) => {
+      const daysToReplace = [parsedInput.dayOfWeek, ...copyToDayOfWeek];
+
+      await Promise.all(
+        daysToReplace.map((dayOfWeek) =>
+          transaction.businessHoursDay.upsert({
+            where: {
+              businessId_dayOfWeek: {
+                businessId,
+                dayOfWeek,
+              },
+            },
+            update: {
+              isClosed: dayOfWeek === parsedInput.dayOfWeek ? parsedInput.isClosed : false,
+            },
+            create: {
+              businessId,
+              dayOfWeek,
+              isClosed: dayOfWeek === parsedInput.dayOfWeek ? parsedInput.isClosed : false,
+            },
+          }),
+        ),
+      );
+
+      await transaction.businessHours.deleteMany({
+        where: {
           businessId,
-          dayOfWeek: parsedInput.dayOfWeek,
+          dayOfWeek: {
+            in: daysToReplace,
+          },
         },
-      },
-      update: {
-        openTime: parsedInput.openTime,
-        closeTime: parsedInput.closeTime,
-        isClosed: parsedInput.isClosed,
-      },
-      create: {
-        businessId,
-        dayOfWeek: parsedInput.dayOfWeek,
-        openTime: parsedInput.openTime,
-        closeTime: parsedInput.closeTime,
-        isClosed: parsedInput.isClosed,
-      },
+      });
+
+      if (sortedPeriods.length > 0) {
+        await transaction.businessHours.createMany({
+          data: daysToReplace.flatMap((dayOfWeek) =>
+            sortedPeriods.map((period) => ({
+              businessId,
+              dayOfWeek,
+              openTime: period.openTime,
+              closeTime: period.closeTime,
+            })),
+          ),
+        });
+      }
     });
 
     revalidateAdminPaths(["/admin/calendar", "/book"]);
-    return buildEntityActionState("success", "Business hours updated.");
+    return buildEntityActionState(
+      "success",
+      copyToDayOfWeek.length > 0
+        ? `Business hours updated and Business periods copied to ${copyToDayOfWeek.length} day${copyToDayOfWeek.length === 1 ? "" : "s"}.`
+        : "Business hours updated.",
+    );
   } catch (error) {
     return handleEntityMutationError(error, "Unable to update business hours.");
   }
@@ -577,86 +611,9 @@ export async function deleteBlackoutDateAction(
   }
 }
 
-export async function upsertBrandingAction(formData: FormData) {
-  const path = getRedirectPath(formData, "/admin/branding");
-
-  try {
-    const businessId = await getAdminBusinessId();
-    const parsedInput = brandingSchema.parse({
-      primaryFont: getFormString(formData.get("primaryFont")),
-      secondaryFont: getFormString(formData.get("secondaryFont")),
-      primaryColor: getFormString(formData.get("primaryColor")),
-      secondaryColor: getFormString(formData.get("secondaryColor")),
-      backgroundColor: getFormString(formData.get("backgroundColor")),
-      textColor: getFormString(formData.get("textColor")),
-    });
-    const branding = validateBrandingSettings(parsedInput);
-    const uploadedAssets = (
-      await Promise.all(
-        brandAssetKinds.map((kind) =>
-          readValidatedBrandAssetUpload(kind, formData.get(getBrandAssetFieldName(kind))),
-        ),
-      )
-    ).filter((asset) => asset !== null);
-    const removeKinds = brandAssetKinds.filter((kind) =>
-      getFormCheckbox(formData, getBrandAssetRemoveFieldName(kind)),
-    );
-
-    await prisma.$transaction(async (tx) => {
-      await tx.business.update({
-        where: {
-          id: businessId,
-        },
-        data: branding,
-      });
-
-      for (const kind of removeKinds) {
-        const replacementForKind = uploadedAssets.find((asset) => asset.kind === kind);
-
-        if (!replacementForKind) {
-          await tx.brandAsset.deleteMany({
-            where: {
-              businessId,
-              kind,
-            },
-          });
-        }
-      }
-
-      for (const asset of uploadedAssets) {
-        await tx.brandAsset.upsert({
-          where: {
-            businessId_kind: {
-              businessId,
-              kind: asset.kind,
-            },
-          },
-          update: {
-            originalFilename: asset.originalFilename,
-            mimeType: asset.mimeType,
-            sizeBytes: asset.sizeBytes,
-            data: asset.data,
-          },
-          create: {
-            businessId,
-            kind: asset.kind,
-            originalFilename: asset.originalFilename,
-            mimeType: asset.mimeType,
-            sizeBytes: asset.sizeBytes,
-            data: asset.data,
-          },
-        });
-      }
-    });
-
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin/branding",
-    ]);
-    redirectWithNotice(path, "success", "Branding saved.");
-  } catch (error) {
-    handleMutationError(path, error, "Unable to save branding.");
-  }
+export async function upsertBrandingAction(
+  _previousState: BrandingActionState,
+  formData: FormData,
+): Promise<BrandingActionState> {
+  return saveBrandingFromFormData(formData);
 }
