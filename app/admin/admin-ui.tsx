@@ -114,6 +114,25 @@ export function AdminEmptyState({
 export function AdminNav() {
   return (
     <nav className="flex flex-wrap gap-3">
+      <Link
+        href="/"
+        className="admin-button-secondary gap-2 text-sm font-medium"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12.5 4.5 7 10l5.5 5.5" />
+          <path d="M7.5 10h8" />
+        </svg>
+        Back to home
+      </Link>
       {adminNavItems.map((item) => (
         <Link
           key={item.href}

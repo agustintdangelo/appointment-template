@@ -125,7 +125,8 @@ Branding is a first-class feature in this template.
   - prefer `bg-highlight-surface text-highlight-foreground` for highlight-toned notices and cards
   - do not assume dark text will remain readable on admin-selected brand colors
 - branding admin saves should stay in place instead of bouncing through redirect notices
-  - prefer structured server-action state for `/admin/branding`
+  - prefer the dedicated multipart save flow on `/api/admin/branding` for `/admin/branding`
+  - keep preview assets visible until the server returns the persisted asset snapshot
   - keep success/error feedback close to the save button
   - avoid leaking framework redirect errors like `NEXT_REDIRECT` into the UI
 
@@ -138,6 +139,7 @@ The admin workspace now has a few concrete patterns that should be extended inst
   - prefer default admin typography over public display fonts
   - keep decorative branding treatment inside previews or public pages, not the admin controls themselves
   - extend the shared neutral admin primitives in `app/globals.css` and `app/admin/admin-ui.tsx` so Calendar, Staff, Appointments, Services, and Branding stay visually aligned
+  - keep a shared return path to the public homepage in the admin shell so operators can leave the workspace without relying on browser navigation
   - when validation or save feedback appears in modal editors, prefer calm transitions over abrupt layout shifts
   - respect reduced-motion preferences when adding admin-side transitions or animated feedback
 - services and staff pages are server entrypoints that fetch data, then pass control to client managers
@@ -229,6 +231,9 @@ Use these existing anchors before inventing new patterns:
   - `app/admin/components/`
   - `app/admin/admin-ui.tsx`
   - `app/admin/components/collection-view-transition.tsx`
+- admin shell navigation:
+  - `app/admin/admin-ui.tsx`
+  - include the shared "Back to home" action alongside admin section navigation
 - branding admin flow:
   - `/admin/branding`
   - `app/admin/actions.ts`
