@@ -126,20 +126,22 @@ A slot is available only if:
   - reads branding once per request through a cached Prisma helper
   - applies CSS variables for the public site only
   - keeps the admin shell on default neutral styling
-- branding validation happens server-side in the admin action
+- branding validation happens server-side in the shared branding mutation helper
   - allowed font list is enforced
   - colors must be valid 6-digit hex values
   - text/background contrast under `4.5:1` is surfaced as a warning
   - primary/background contrast under `3:1` is surfaced as a warning
   - upload MIME types and file sizes are restricted by asset kind
-  - branding saves use structured action-state responses instead of redirect notices so the editor can stay in place and show save feedback inline
+  - branding saves return structured state instead of redirect notices so the editor can stay in place and show save feedback inline
 
 ## Upload handling
 
-- branding files are submitted through a standard multipart server action form
+- the admin branding form posts `multipart/form-data` to `/api/admin/branding`
+- the route handler reuses the shared branding mutation helper so validation, persistence, and saved-asset shaping stay in one place
 - validated files are stored in SQLite as `Bytes` / `BLOB`
 - assets are streamed back through `/api/brand-assets/[assetId]`
 - asset URLs include a version query derived from `updatedAt` so replacements bust browser cache cleanly
+- the public branding read model uses a tagged cache so layout and metadata can share one snapshot per render, and branding saves explicitly revalidate that tag
 
 ## Extension points
 In later versions this can extend into:

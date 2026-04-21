@@ -61,7 +61,7 @@ Branding is now business-owned data, not hardcoded theme values.
 - Admins can upload a main logo, an alternate logo for dark surfaces, and a favicon.
 - Uploaded branding assets are stored in the database and served through `/api/brand-assets/[assetId]`.
 - The branding editor keeps the admin UI neutral and uses the branded preview only for the customer-facing surfaces.
-- Saving happens in place through a server action state flow, so the page does not redirect or jump to the top.
+- Saving happens in place through a multipart POST to `/api/admin/branding`, so the page does not redirect or jump to the top.
 - No new environment variables are required for branding in this version.
 
 ### Upload rules
@@ -72,7 +72,7 @@ Branding is now business-owned data, not hardcoded theme values.
 
 ### Runtime behavior
 
-- Public pages read branding settings at request time through the public layout.
+- Public pages read branding settings through a tagged public-branding query that is revalidated after each branding save.
 - Missing or partial branding falls back to the default theme values seeded in the schema.
 - The admin area stays operationally neutral, except for the dedicated branding preview on `/admin/branding`.
 - Low-contrast palette combinations trigger warnings in the editor, but they do not block saving.

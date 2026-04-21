@@ -1,18 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { upsertBrandingAction } from "@/app/admin/actions";
-import {
-  initialBrandingActionState,
-  type BrandingActionState,
-  type BrandingAssetPreview,
-  type BrandingFormAsset,
+import type {
+  BrandingActionState,
+  BrandingAssetPreview,
+  BrandingFormAsset,
 } from "@/app/admin/branding/branding-types";
 import {
   buildBrandingCssVariables,
+  brandAssetKinds,
   getBrandAssetFieldName,
   getBrandAssetRemoveFieldName,
   getBrandFontOptionsByCategory,
@@ -32,6 +30,7 @@ type BrandingFormProps = {
 type FileState = Record<BrandAssetKindValue, File | null>;
 type FileUrlState = Record<BrandAssetKindValue, string | null>;
 type RemoveState = Record<BrandAssetKindValue, boolean>;
+type FileInputVersionState = Record<BrandAssetKindValue, number>;
 type PersistedAssetsState = Record<BrandAssetKindValue, BrandingAssetPreview | null>;
 
 const emptyFileState: FileState = {
@@ -52,6 +51,12 @@ const emptyRemoveState: RemoveState = {
   FAVICON: false,
 };
 
+const emptyFileInputVersionState: FileInputVersionState = {
+  LOGO: 0,
+  LOGO_ALT: 0,
+  FAVICON: 0,
+};
+
 function buildPersistedAssetsState(assets: BrandingFormAsset[]): PersistedAssetsState {
   const persistedAssets: PersistedAssetsState = {
     LOGO: null,
@@ -64,6 +69,19 @@ function buildPersistedAssetsState(assets: BrandingFormAsset[]): PersistedAssets
   }
 
   return persistedAssets;
+}
+
+function buildInitialSaveState(
+  initialBranding: BrandingSettings,
+  assets: BrandingFormAsset[],
+): BrandingActionState {
+  return {
+    status: "idle",
+    message: null,
+    fieldErrors: {},
+    savedBranding: initialBranding,
+    savedAssets: buildPersistedAssetsState(assets),
+  };
 }
 
 function formatFileSize(sizeBytes: number) {
@@ -104,10 +122,11 @@ function WarningList({ warnings }: { warnings: ReturnType<typeof getBrandingWarn
 
 function SaveBrandingButton({
   isSaved,
+  pending,
 }: {
   isSaved: boolean;
+  pending: boolean;
 }) {
-  const { pending } = useFormStatus();
   const buttonLabel = pending ? "Saving..." : isSaved ? "Saved" : "Save branding";
 
   return (
@@ -128,13 +147,13 @@ function SaveBrandingButton({
 
 function SaveBrandingStatus({
   isSaved,
+  pending,
   errorMessage,
 }: {
   isSaved: boolean;
+  pending: boolean;
   errorMessage?: string | null;
 }) {
-  const { pending } = useFormStatus();
-
   return (
     <p
       aria-live="polite"
@@ -170,6 +189,24 @@ function getCurrentAssetUrl(
   return persistedAssets[kind]?.url ?? null;
 }
 
+function buildErrorState(
+  message: string,
+  savedBranding: BrandingSettings,
+  savedAssets: PersistedAssetsState,
+): BrandingActionState {
+  return {
+    status: "error",
+    message,
+    fieldErrors: {},
+    savedBranding,
+    savedAssets,
+  };
+}
+
+function hasUploadedFile(entry: FormDataEntryValue | null) {
+  return entry instanceof File && entry.size > 0;
+}
+
 export default function BrandingForm({
   businessName,
   businessDescription,
@@ -177,11 +214,10 @@ export default function BrandingForm({
   assets,
 }: BrandingFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const lastHandledSuccessRef = useRef<string | null>(null);
-  const [saveState, saveAction] = useActionState<BrandingActionState, FormData>(
-    upsertBrandingAction,
-    initialBrandingActionState,
+  const [saveState, setSaveState] = useState<BrandingActionState>(() =>
+    buildInitialSaveState(initialBranding, assets),
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [primaryFont, setPrimaryFont] = useState(initialBranding.primaryFont);
   const [secondaryFont, setSecondaryFont] = useState(initialBranding.secondaryFont);
   const [primaryColor, setPrimaryColor] = useState(initialBranding.primaryColor);
@@ -191,6 +227,8 @@ export default function BrandingForm({
   const [selectedFiles, setSelectedFiles] = useState<FileState>(emptyFileState);
   const [fileUrls, setFileUrls] = useState<FileUrlState>(emptyFileUrlState);
   const [removeState, setRemoveState] = useState<RemoveState>(emptyRemoveState);
+  const [fileInputVersions, setFileInputVersions] =
+    useState<FileInputVersionState>(emptyFileInputVersionState);
 
   useEffect(() => {
     return () => {
@@ -201,24 +239,6 @@ export default function BrandingForm({
       }
     };
   }, [fileUrls]);
-
-  useEffect(() => {
-    if (saveState.status !== "success" || !saveState.savedBranding || !saveState.savedAssets) {
-      return;
-    }
-
-    const successToken = JSON.stringify({
-      branding: saveState.savedBranding,
-      assets: saveState.savedAssets,
-    });
-
-    if (lastHandledSuccessRef.current === successToken) {
-      return;
-    }
-
-    lastHandledSuccessRef.current = successToken;
-    formRef.current?.reset();
-  }, [saveState.savedAssets, saveState.savedBranding, saveState.status]);
 
   const persistedBranding = saveState.savedBranding ?? initialBranding;
   const persistedAssets = saveState.savedAssets ?? buildPersistedAssetsState(assets);
@@ -254,6 +274,50 @@ export default function BrandingForm({
     Object.values(removeState).some(Boolean);
   const isSaved = saveState.status === "success" && !isDirty;
 
+  function bumpFileInputVersions(kinds: readonly BrandAssetKindValue[]) {
+    setFileInputVersions((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        nextValue[kind] += 1;
+      }
+
+      return nextValue;
+    });
+  }
+
+  function clearTransientFileSelections(
+    kinds: readonly BrandAssetKindValue[] = brandAssetKinds,
+  ) {
+    setSelectedFiles((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        nextValue[kind] = null;
+      }
+
+      return nextValue;
+    });
+
+    setFileUrls((currentValue) => {
+      const nextValue = { ...currentValue };
+
+      for (const kind of kinds) {
+        const currentUrl = currentValue[kind];
+
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl);
+        }
+
+        nextValue[kind] = null;
+      }
+
+      return nextValue;
+    });
+
+    bumpFileInputVersions(kinds);
+  }
+
   function handleFileChange(kind: BrandAssetKindValue, nextFile: File | null) {
     setSelectedFiles((currentValue) => ({
       ...currentValue,
@@ -287,44 +351,97 @@ export default function BrandingForm({
     }));
 
     if (checked) {
-      setSelectedFiles((currentValue) => ({
-        ...currentValue,
-        [kind]: null,
-      }));
-      setFileUrls((currentValue) => {
-        const currentUrl = currentValue[kind];
-
-        if (currentUrl) {
-          URL.revokeObjectURL(currentUrl);
-        }
-
-        return {
-          ...currentValue,
-          [kind]: null,
-        };
-      });
+      clearTransientFileSelections([kind]);
     }
   }
 
-  function handleFormReset() {
-    setSelectedFiles({ ...emptyFileState });
-    setRemoveState({ ...emptyRemoveState });
-    setFileUrls((currentValue) => {
-      for (const url of Object.values(currentValue)) {
-        if (url) {
-          URL.revokeObjectURL(url);
-        }
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isSubmitting || !formRef.current) {
+      return;
+    }
+
+    const nextFormData = new FormData(formRef.current);
+    const uploadedKinds = brandAssetKinds.filter((kind) =>
+      hasUploadedFile(nextFormData.get(getBrandAssetFieldName(kind))),
+    );
+    const removedKinds = brandAssetKinds.filter((kind) =>
+      nextFormData.get(getBrandAssetRemoveFieldName(kind)) === "on",
+    );
+
+    setIsSubmitting(true);
+    setSaveState((currentValue) => ({
+      ...currentValue,
+      status: "idle",
+      message: null,
+      fieldErrors: {},
+    }));
+
+    try {
+      const response = await fetch("/api/admin/branding", {
+        method: "POST",
+        body: nextFormData,
+      });
+      const result = (await response.json()) as BrandingActionState;
+      const nextSavedBranding = result.savedBranding ?? persistedBranding;
+      const nextSavedAssets = result.savedAssets ?? persistedAssets;
+
+      if (result.status !== "success") {
+        setSaveState({
+          ...result,
+          savedBranding: nextSavedBranding,
+          savedAssets: nextSavedAssets,
+        });
+        return;
       }
 
-      return { ...emptyFileUrlState };
-    });
+      const missingUploadedKinds = uploadedKinds.filter((kind) => !nextSavedAssets[kind]);
+      const staleRemovedKinds = removedKinds.filter(
+        (kind) => !uploadedKinds.includes(kind) && nextSavedAssets[kind],
+      );
+
+      if (missingUploadedKinds.length > 0 || staleRemovedKinds.length > 0) {
+        setSaveState(
+          buildErrorState(
+            "Branding saved partially, but one or more asset updates did not stick yet. Your preview has been left in place so you can retry safely.",
+            nextSavedBranding,
+            nextSavedAssets,
+          ),
+        );
+        return;
+      }
+
+      setPrimaryFont(nextSavedBranding.primaryFont);
+      setSecondaryFont(nextSavedBranding.secondaryFont);
+      setPrimaryColor(nextSavedBranding.primaryColor);
+      setSecondaryColor(nextSavedBranding.secondaryColor);
+      setBackgroundColor(nextSavedBranding.backgroundColor);
+      setTextColor(nextSavedBranding.textColor);
+      setSaveState({
+        ...result,
+        savedBranding: nextSavedBranding,
+        savedAssets: nextSavedAssets,
+      });
+      clearTransientFileSelections();
+      setRemoveState({ ...emptyRemoveState });
+    } catch (error) {
+      setSaveState(
+        buildErrorState(
+          error instanceof Error ? error.message : "Unable to save branding.",
+          persistedBranding,
+          persistedAssets,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <form
       ref={formRef}
-      action={saveAction}
-      onReset={handleFormReset}
+      onSubmit={handleSubmit}
       encType="multipart/form-data"
       className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] xl:items-start"
     >
@@ -474,10 +591,7 @@ export default function BrandingForm({
               const persistedAsset = persistedAssets[assetConfig.kind];
 
               return (
-                <div
-                  key={assetConfig.kind}
-                  className="admin-muted-panel p-4"
-                >
+                <div key={assetConfig.kind} className="admin-muted-panel p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="max-w-2xl">
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
@@ -528,9 +642,7 @@ export default function BrandingForm({
                     <label className="grid gap-2 text-sm font-medium">
                       Upload replacement
                       <input
-                        key={`${assetConfig.kind}-${selectedFile?.name ?? "empty"}-${
-                          removeState[assetConfig.kind] ? "removed" : "kept"
-                        }-${persistedAssets[assetConfig.kind]?.url ?? "none"}`}
+                        key={`${assetConfig.kind}-${fileInputVersions[assetConfig.kind]}`}
                         type="file"
                         name={getBrandAssetFieldName(assetConfig.kind)}
                         accept={assetConfig.accept}
@@ -567,9 +679,10 @@ export default function BrandingForm({
 
         <div className="admin-panel p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <SaveBrandingButton isSaved={isSaved} />
+            <SaveBrandingButton isSaved={isSaved} pending={isSubmitting} />
             <SaveBrandingStatus
               isSaved={isSaved}
+              pending={isSubmitting}
               errorMessage={saveState.status === "error" ? saveState.message : undefined}
             />
           </div>

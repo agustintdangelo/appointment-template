@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
 import { normalizeBusinessHoursDays } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
@@ -46,35 +46,45 @@ export async function getPrimaryBusiness() {
   });
 }
 
-export const getPublicBranding = cache(async () => {
-  return prisma.business.findFirst({
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      description: true,
-      primaryFont: true,
-      secondaryFont: true,
-      primaryColor: true,
-      secondaryColor: true,
-      backgroundColor: true,
-      textColor: true,
-      brandAssets: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          id: true,
-          kind: true,
-          originalFilename: true,
-          mimeType: true,
-          sizeBytes: true,
-          updatedAt: true,
+const getCachedPublicBranding = unstable_cache(
+  async () => {
+    return prisma.business.findFirst({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        primaryFont: true,
+        secondaryFont: true,
+        primaryColor: true,
+        secondaryColor: true,
+        backgroundColor: true,
+        textColor: true,
+        brandAssets: {
+          orderBy: {
+            createdAt: "asc",
+          },
+          select: {
+            id: true,
+            kind: true,
+            originalFilename: true,
+            mimeType: true,
+            sizeBytes: true,
+            updatedAt: true,
+          },
         },
       },
-    },
-  });
-});
+    });
+  },
+  ["public-branding"],
+  {
+    tags: ["public-branding"],
+  },
+);
+
+export async function getPublicBranding() {
+  return getCachedPublicBranding();
+}
 
 export async function getAppointmentConfirmation(appointmentId: string) {
   return prisma.appointment.findUnique({

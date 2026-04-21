@@ -399,6 +399,7 @@ Date/time: 2026-04-14 agent guidance alignment
 Date/time: 2026-04-17 branding admin reliability and UX pass
 
 ### What changed
+- aligned the Next server-action request body limit with the branding asset validation limits so logo uploads can persist in the same save flow
 - replaced the branding editor's redirect-based save flow with a structured server-action state flow
 - fixed the leaked `NEXT_REDIRECT` notice by removing redirect-driven success and error handling from `/admin/branding`
 - changed low-contrast branding checks from hard validation failures to advisory warnings
@@ -407,6 +408,7 @@ Date/time: 2026-04-17 branding admin reliability and UX pass
 - moved save feedback into the button area with stable `Saving...` and `Saved` states instead of a top-level jump message
 
 ### Files/modules affected
+- `next.config.ts`
 - `app/admin/actions.ts`
 - `app/admin/branding/`
 - `app/admin/admin-ui.tsx`
@@ -422,6 +424,7 @@ Date/time: 2026-04-17 branding admin reliability and UX pass
 - none
 
 ### Decisions made
+- branding uploads stay on the existing multipart server-action path, but the framework body limit now matches the allowed combined asset sizes
 - branding saves now stay on the same page and return structured state instead of redirecting with query-string notices
 - contrast guidance remains visible but does not block deliberate branding choices made by admins
 - the admin workspace should stay neutral and readable even when the public site adopts expressive branding
@@ -634,3 +637,63 @@ Date/time: 2026-04-20 sorting transition polish
 
 ### Next recommended step
 - implement staff availability management and appointment status editing
+
+## Iteration 17
+Date/time: 2026-04-20 branding asset persistence and preview reliability
+
+### What changed
+- moved `/admin/branding` saves onto a dedicated multipart route at `/api/admin/branding`
+- centralized branding mutation logic in `lib/branding-admin.ts` so the route and any future server entrypoint reuse the same validation and persistence path
+- removed the branding form's post-save reset behavior and kept preview assets visible until the server returns the persisted asset snapshot
+- made the branding form swap from local object URLs to saved asset URLs only after a confirmed successful save
+- fixed public logo application by replacing the stale React-cached public-branding reader with a tagged cache that is explicitly revalidated after branding saves
+
+### Files/modules affected
+- `app/api/admin/branding/route.ts`
+- `app/admin/branding/branding-form.tsx`
+- `lib/branding-admin.ts`
+- `lib/queries.ts`
+- `README.md`
+- `AGENTS.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- kept branding persistence in the existing `Business` + `BrandAsset` model instead of introducing a separate upload service
+- used a route handler for branding uploads because the feature needs robust multipart behavior and stable in-place save feedback
+- kept the public branding read model cached, but only behind a revalidatable tag so metadata and layout can share one snapshot without serving stale logos after save
+
+### Open issues / risks
+- admin auth is still missing, so branding controls remain operationally exposed in the same way as the rest of admin
+- browser favicon refresh behavior still depends on client caching rules, although saved favicon URLs are versioned to make refreshes more reliable
+
+### Next recommended step
+- add an end-to-end browser test that uploads branding assets, saves, and verifies both admin preview continuity and public logo rendering
+
+## Iteration 18
+Date/time: 2026-04-20 admin return path
+
+### What changed
+- added a shared "Back to home" action to the admin workspace navigation so admins can return to the public homepage from any admin page
+- kept the action inside the existing admin shell instead of duplicating a return link on each page
+
+### Files/modules affected
+- `app/admin/admin-ui.tsx`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- reused the existing shared admin button styling so the return action feels like part of the same workspace navigation
+- linked the action directly to `/` because the public route group keeps the home page at the root path
+
+### Open issues / risks
+- admin auth is still missing, so branding controls remain operationally exposed in the same way as the rest of admin
+- browser favicon refresh behavior still depends on client caching rules, although saved favicon URLs are versioned to make refreshes more reliable
+
+### Next recommended step
+- add an end-to-end browser test that uploads branding assets, saves, and verifies both admin preview continuity and public logo rendering
