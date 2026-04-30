@@ -673,6 +673,29 @@ Date/time: 2026-04-20 branding asset persistence and preview reliability
 ### Next recommended step
 - add an end-to-end browser test that uploads branding assets, saves, and verifies both admin preview continuity and public logo rendering
 
+## Iteration 19
+Date/time: 2026-04-30 branding asset URL cache-shape fix
+
+### What changed
+- fixed `buildBrandAssetUrl` so branding asset URLs work whether `updatedAt` arrives as a `Date` or as a serialized string from the cached public-branding reader
+- added a safe fallback that still serves the asset without a version query if the timestamp cannot be parsed
+
+### Files/modules affected
+- `lib/branding.ts`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- kept the fix in the shared branding URL helper instead of special-casing only the public layout, because admin preview and public rendering should tolerate the same asset shape variations
+
+### Open issues / risks
+- favicon refresh behavior still depends partly on browser caching even though valid timestamped asset URLs continue to be preferred
+
+### Next recommended step
+- add a small unit/integration test around cached branding asset serialization so Date-to-string regressions are caught automatically
+
 ## Iteration 18
 Date/time: 2026-04-20 admin return path
 

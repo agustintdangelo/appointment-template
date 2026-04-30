@@ -166,7 +166,7 @@ export type BrandAssetSummary = {
   originalFilename: string;
   mimeType: string;
   sizeBytes: number;
-  updatedAt: Date;
+  updatedAt: Date | string | number;
 };
 
 export type ValidatedBrandAssetUpload = {
@@ -483,5 +483,12 @@ export function buildBrandAssetUrl(asset?: Pick<BrandAssetSummary, "id" | "updat
     return null;
   }
 
-  return `/api/brand-assets/${asset.id}?v=${asset.updatedAt.getTime()}`;
+  const updatedAt =
+    asset.updatedAt instanceof Date ? asset.updatedAt.getTime() : new Date(asset.updatedAt).getTime();
+
+  if (Number.isNaN(updatedAt)) {
+    return `/api/brand-assets/${asset.id}`;
+  }
+
+  return `/api/brand-assets/${asset.id}?v=${updatedAt}`;
 }
