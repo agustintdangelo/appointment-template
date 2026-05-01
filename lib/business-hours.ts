@@ -1,4 +1,4 @@
-import { dayOptions } from "@/lib/admin";
+import { DEFAULT_LOCALE, t, weekdayValues } from "@/lib/i18n";
 
 export type BusinessPeriodLike = {
   openTime: string;
@@ -115,9 +115,11 @@ function addFieldError(
 export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
   periods,
   isClosed,
+  locale = DEFAULT_LOCALE,
 }: {
   periods: TPeriod[];
   isClosed: boolean;
+  locale?: unknown;
 }): BusinessPeriodValidationResult<TPeriod> {
   const sortedPeriods = sortBusinessPeriods(periods);
   const rowErrors: BusinessPeriodValidationRow[] = sortedPeriods.map(() => ({
@@ -127,11 +129,13 @@ export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
   let formError: string | undefined;
 
   if (sortedPeriods.length > MAX_BUSINESS_PERIODS_PER_DAY) {
-    formError = `You can add up to ${MAX_BUSINESS_PERIODS_PER_DAY} Business periods per day.`;
+    formError = t(locale, "actions.businessPeriodsLimit", {
+      count: MAX_BUSINESS_PERIODS_PER_DAY,
+    });
   }
 
   if (!isClosed && sortedPeriods.length === 0) {
-    formError = "Add at least 1 Business period or mark the day as closed.";
+    formError = t(locale, "validation.addPeriodOrClose");
   }
 
   const validRanges: Array<{
@@ -142,11 +146,11 @@ export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
 
   for (const [rowIndex, period] of sortedPeriods.entries()) {
     if (!period.openTime) {
-      addFieldError(rowErrors, rowIndex, "openTime", "Choose a start time.");
+      addFieldError(rowErrors, rowIndex, "openTime", t(locale, "validation.chooseStart"));
     }
 
     if (!period.closeTime) {
-      addFieldError(rowErrors, rowIndex, "closeTime", "Choose an end time.");
+      addFieldError(rowErrors, rowIndex, "closeTime", t(locale, "validation.chooseEnd"));
     }
 
     if (!period.openTime || !period.closeTime) {
@@ -157,11 +161,11 @@ export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
     const endMinutes = timeStringToMinutes(period.closeTime);
 
     if (Number.isNaN(startMinutes)) {
-      addFieldError(rowErrors, rowIndex, "openTime", "Choose a valid start time.");
+      addFieldError(rowErrors, rowIndex, "openTime", t(locale, "validation.validStart"));
     }
 
     if (Number.isNaN(endMinutes)) {
-      addFieldError(rowErrors, rowIndex, "closeTime", "Choose a valid end time.");
+      addFieldError(rowErrors, rowIndex, "closeTime", t(locale, "validation.validEnd"));
     }
 
     if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
@@ -173,7 +177,7 @@ export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
         rowErrors,
         rowIndex,
         "closeTime",
-        "End time must be later than the start time and cannot cross midnight.",
+        t(locale, "validation.noOvernight"),
       );
       continue;
     }
@@ -190,7 +194,7 @@ export function validateBusinessPeriods<TPeriod extends BusinessPeriodLike>({
     const currentRange = validRanges[index];
 
     if (currentRange.startMinutes < previousRange.endMinutes) {
-      const message = "This Business period overlaps another Business period.";
+      const message = t(locale, "validation.periodOverlap");
       addRowMessage(rowErrors, previousRange.rowIndex, message);
       addRowMessage(rowErrors, currentRange.rowIndex, message);
 
@@ -228,13 +232,13 @@ export function normalizeBusinessHoursDays<
     periodsByDay.set(entry.dayOfWeek, existingEntries);
   }
 
-  return dayOptions.map((day) => {
-    const state = dayStateByDay.get(day.value);
-    const dayPeriods = periodsByDay.get(day.value) ?? [];
+  return weekdayValues.map((dayOfWeek) => {
+    const state = dayStateByDay.get(dayOfWeek);
+    const dayPeriods = periodsByDay.get(dayOfWeek) ?? [];
 
     return {
-      id: state?.id ?? `business-hours-day-${day.value}`,
-      dayOfWeek: day.value,
+      id: state?.id ?? `business-hours-day-${dayOfWeek}`,
+      dayOfWeek,
       isClosed: state?.isClosed ?? dayPeriods.length === 0,
       periods: dayPeriods,
     } satisfies BusinessHoursDayRecord<TPeriod>;

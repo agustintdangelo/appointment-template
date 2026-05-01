@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { saveBrandingFromFormData } from "@/lib/branding-admin";
+import { t } from "@/lib/i18n";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to read the branding upload request.";
+      error instanceof Error ? error.message : t("es", "actions.brandingRequestReadError");
 
     return NextResponse.json(
       {

@@ -10,6 +10,8 @@ type CreateEntityModalProps = {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
+  closeLabel?: string;
+  closeAriaLabel?: string;
 };
 
 export default function CreateEntityModal({
@@ -19,6 +21,8 @@ export default function CreateEntityModal({
   isOpen,
   onClose,
   children,
+  closeLabel = "Close",
+  closeAriaLabel = "Close dialog",
 }: CreateEntityModalProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -82,10 +86,10 @@ export default function CreateEntityModal({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close dialog"
+              aria-label={closeAriaLabel}
               className="admin-button-secondary"
             >
-              Close
+              {closeLabel}
             </button>
           </div>
         </div>

@@ -9,6 +9,7 @@ export async function getPrimaryBusiness() {
       id: true,
       name: true,
       slug: true,
+      defaultLocale: true,
       phone: true,
       email: true,
       description: true,
@@ -54,6 +55,7 @@ const getCachedPublicBranding = unstable_cache(
         name: true,
         slug: true,
         description: true,
+        defaultLocale: true,
         primaryFont: true,
         secondaryFont: true,
         primaryColor: true,
@@ -97,6 +99,9 @@ export async function getAppointmentConfirmation(appointmentId: string) {
       customerName: true,
       customerEmail: true,
       customerPhone: true,
+      contactEmail: true,
+      contactPhone: true,
+      bookingType: true,
       notes: true,
       status: true,
       startAt: true,
@@ -104,6 +109,7 @@ export async function getAppointmentConfirmation(appointmentId: string) {
       business: {
         select: {
           name: true,
+          defaultLocale: true,
           phone: true,
           email: true,
         },
@@ -131,6 +137,7 @@ export async function getAdminAppointments() {
     select: {
       id: true,
       name: true,
+      defaultLocale: true,
     },
   });
 
@@ -149,6 +156,9 @@ export async function getAdminAppointments() {
       customerName: true,
       customerEmail: true,
       customerPhone: true,
+      contactEmail: true,
+      contactPhone: true,
+      bookingType: true,
       notes: true,
       status: true,
       startAt: true,
@@ -178,6 +188,7 @@ export async function getAdminBusinessSummary() {
       id: true,
       name: true,
       slug: true,
+      defaultLocale: true,
       description: true,
       phone: true,
       email: true,
@@ -190,6 +201,7 @@ export async function getAdminBranding() {
     select: {
       id: true,
       name: true,
+      defaultLocale: true,
       description: true,
       primaryFont: true,
       secondaryFont: true,

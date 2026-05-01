@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 
 import {
-  adminCollectionStatusOptions,
   type AdminCollectionSort,
   type AdminCollectionStatusFilter,
   type AdminCollectionViewMode,
 } from "@/app/admin/components/admin-collection-types";
 import CollectionViewModeButton from "@/app/admin/components/collection-view-mode-button";
+import { DEFAULT_LOCALE, t, type AppLocale } from "@/lib/i18n";
 
 type AdminListHeaderProps = {
   searchLabel: string;
@@ -21,6 +21,7 @@ type AdminListHeaderProps = {
   onViewModeChange: (value: AdminCollectionViewMode) => void;
   summary: ReactNode;
   filtersLabel?: string;
+  locale?: AppLocale;
 };
 
 function HeaderSelect({
@@ -205,8 +206,15 @@ export default function AdminListHeader({
   viewMode,
   onViewModeChange,
   summary,
-  filtersLabel = "Filters",
+  filtersLabel,
+  locale = DEFAULT_LOCALE,
 }: AdminListHeaderProps) {
+  const statusOptions = [
+    { value: "all", label: t(locale, "admin.collection.statusAll") },
+    { value: "active", label: t(locale, "admin.collection.statusActive") },
+    { value: "inactive", label: t(locale, "admin.collection.statusInactive") },
+  ];
+
   return (
     <section className="admin-panel p-6">
       <div className="grid gap-5">
@@ -242,22 +250,22 @@ export default function AdminListHeader({
           <div className="grid gap-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
               <HeaderSelect
-                label={filtersLabel}
+                label={filtersLabel ?? t(locale, "common.filters")}
                 value={statusFilter}
                 onChange={(value) => onStatusFilterChange(value as AdminCollectionStatusFilter)}
-                options={adminCollectionStatusOptions}
+                options={statusOptions}
               />
 
               <div className="grid gap-2 text-sm font-medium">
-                <span>Sort</span>
+                <span>{t(locale, "common.sort")}</span>
                 <div className="flex">
                   <HeaderIconButton
                     label={
                       sortValue === "default"
-                        ? "Sort by name"
+                        ? t(locale, "admin.collection.sortByName")
                         : sortValue === "name-asc"
-                          ? "Switch sort to descending"
-                          : "Reset sort order"
+                          ? t(locale, "admin.collection.sortDescending")
+                          : t(locale, "admin.collection.resetSort")
                     }
                     onClick={() => onSortChange(getNextSortValue(sortValue))}
                   >
@@ -267,9 +275,13 @@ export default function AdminListHeader({
               </div>
 
               <div className="grid gap-2 text-sm font-medium">
-                <span>View</span>
+                <span>{t(locale, "common.view")}</span>
                 <div className="flex">
-                  <CollectionViewModeButton viewMode={viewMode} onChange={onViewModeChange} />
+                  <CollectionViewModeButton
+                    viewMode={viewMode}
+                    onChange={onViewModeChange}
+                    locale={locale}
+                  />
                 </div>
               </div>
             </div>

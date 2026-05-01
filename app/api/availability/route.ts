@@ -2,17 +2,20 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { getDailyAvailability } from "@/lib/booking";
+import { normalizeLocale, t } from "@/lib/i18n";
 import { availabilityQuerySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const locale = normalizeLocale(url.searchParams.get("locale"));
+
   try {
-    const url = new URL(request.url);
     const parsedQuery = availabilityQuerySchema.parse(
       Object.fromEntries(url.searchParams.entries()),
     );
-    const availability = await getDailyAvailability(parsedQuery);
+    const availability = await getDailyAvailability(parsedQuery, locale);
 
     return NextResponse.json(
       {
@@ -31,7 +34,7 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "Invalid availability request." },
+        { error: t(locale, "validation.invalidAvailability") },
         {
           status: 400,
           headers: {
@@ -41,9 +44,21 @@ export async function GET(request: Request) {
       );
     }
 
-    if (error instanceof Error && error.message.includes("not found")) {
+    if (error instanceof Error && error.message === "SERVICE_NOT_FOUND") {
       return NextResponse.json(
-        { error: error.message },
+        { error: t(locale, "validation.serviceNotFound") },
+        {
+          status: 404,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
+    if (error instanceof Error && error.message === "STAFF_NOT_FOUND") {
+      return NextResponse.json(
+        { error: t(locale, "validation.staffNotFound") },
         {
           status: 404,
           headers: {
@@ -54,7 +69,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { error: "Unable to load availability." },
+      { error: t(locale, "validation.unableAvailability") },
       {
         status: 500,
         headers: {

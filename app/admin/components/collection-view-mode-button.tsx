@@ -1,4 +1,5 @@
 import type { AdminCollectionViewMode } from "@/app/admin/components/admin-collection-types";
+import { DEFAULT_LOCALE, t, type AppLocale } from "@/lib/i18n";
 
 function ViewModeIcon({ viewMode }: { viewMode: AdminCollectionViewMode }) {
   return (
@@ -58,15 +59,22 @@ function ViewModeIcon({ viewMode }: { viewMode: AdminCollectionViewMode }) {
 export default function CollectionViewModeButton({
   viewMode,
   onChange,
+  locale = DEFAULT_LOCALE,
 }: {
   viewMode: AdminCollectionViewMode;
   onChange: (value: AdminCollectionViewMode) => void;
+  locale?: AppLocale;
 }) {
+  const label =
+    viewMode === "cards"
+      ? t(locale, "admin.collection.switchToList")
+      : t(locale, "admin.collection.switchToCards");
+
   return (
     <button
       type="button"
-      aria-label={viewMode === "cards" ? "Switch to list view" : "Switch to card view"}
-      title={viewMode === "cards" ? "Switch to list view" : "Switch to card view"}
+      aria-label={label}
+      title={label}
       onClick={() => onChange(viewMode === "cards" ? "list" : "cards")}
       className="flex h-14 w-14 items-center justify-center rounded-[1rem] border border-slate-300 bg-white text-slate-500 transition hover:border-slate-400 hover:text-slate-900"
     >

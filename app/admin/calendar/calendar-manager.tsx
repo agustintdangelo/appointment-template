@@ -39,9 +39,9 @@ import CreateEntityModal from "@/app/admin/components/create-entity-modal";
 import ListView from "@/app/admin/components/list-view";
 import useSessionCollectionViewMode from "@/app/admin/components/use-session-collection-view";
 import {
-  dayOptions,
   formatBlackoutRange,
-  getDayLabel,
+  getLocalizedDayLabel,
+  getLocalizedDayOptions,
   getLocalDateTimeInputValue,
 } from "@/lib/admin";
 import {
@@ -55,6 +55,11 @@ import {
   type BusinessPeriodRecord,
 } from "@/lib/business-hours";
 import { formatAppointmentDateTime } from "@/lib/format";
+import {
+  getDateFnsLocale,
+  t,
+  type AppLocale,
+} from "@/lib/i18n";
 
 type BusinessPeriod = BusinessPeriodRecord;
 type BusinessHoursDay = BusinessHoursDayRecord<BusinessPeriod>;
@@ -113,6 +118,7 @@ type CalendarManagerProps = {
   staffMembers: StaffRecord[];
   appointments: AppointmentRecord[];
   blackoutDates: BlackoutRecord[];
+  locale: AppLocale;
 };
 
 type CalendarViewMode = "day" | "week" | "month";
@@ -179,33 +185,30 @@ const GRID_HOUR_HEIGHT = 56;
 const MIN_EVENT_HEIGHT = 28;
 const BLACKOUT_VIEW_STORAGE_KEY = "appointment-admin-calendar-blackouts-view-mode";
 
-const calendarViewOptions: Array<{
-  value: CalendarViewMode;
-  label: string;
-}> = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-];
+function getCalendarViewOptions(locale: AppLocale) {
+  return [
+    { value: "day" as const, label: t(locale, "admin.calendar.day") },
+    { value: "week" as const, label: t(locale, "admin.calendar.week") },
+    { value: "month" as const, label: t(locale, "admin.calendar.month") },
+  ];
+}
 
-const blackoutScopeOptions: Array<{
-  value: BlackoutScopeFilter;
-  label: string;
-}> = [
-  { value: "all", label: "All scopes" },
-  { value: "business", label: "Business-wide" },
-  { value: "staff", label: "Staff-specific" },
-];
+function getBlackoutScopeOptions(locale: AppLocale) {
+  return [
+    { value: "all" as const, label: t(locale, "admin.calendar.allScopes") },
+    { value: "business" as const, label: t(locale, "admin.calendar.businessWide") },
+    { value: "staff" as const, label: t(locale, "admin.calendar.staffSpecific") },
+  ];
+}
 
-const blackoutTimeOptions: Array<{
-  value: BlackoutTimeFilter;
-  label: string;
-}> = [
-  { value: "all", label: "All timings" },
-  { value: "upcoming", label: "Upcoming" },
-  { value: "active", label: "Active now" },
-  { value: "past", label: "Past" },
-];
+function getBlackoutTimeOptions(locale: AppLocale) {
+  return [
+    { value: "all" as const, label: t(locale, "admin.calendar.allTimings") },
+    { value: "upcoming" as const, label: t(locale, "admin.calendar.upcoming") },
+    { value: "active" as const, label: t(locale, "admin.calendar.activeNow") },
+    { value: "past" as const, label: t(locale, "admin.calendar.past") },
+  ];
+}
 
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
@@ -253,23 +256,36 @@ function getVisibleDays(focusDate: Date, viewMode: CalendarViewMode) {
   });
 }
 
-function getRangeLabel(focusDate: Date, viewMode: CalendarViewMode) {
+function getRangeLabel(focusDate: Date, viewMode: CalendarViewMode, locale: AppLocale) {
+  const dateLocale = getDateFnsLocale(locale);
+
   if (viewMode === "day") {
-    return format(focusDate, "EEEE, MMMM d, yyyy");
+    return format(focusDate, t(locale, "format.rangeDay"), { locale: dateLocale });
   }
 
   if (viewMode === "week") {
     const weekStart = startOfWeek(focusDate, { weekStartsOn: CALENDAR_WEEK_STARTS_ON });
     const weekEnd = endOfWeek(focusDate, { weekStartsOn: CALENDAR_WEEK_STARTS_ON });
 
-    if (format(weekStart, "MMM yyyy") === format(weekEnd, "MMM yyyy")) {
-      return `${format(weekStart, "MMM d")} - ${format(weekEnd, "d, yyyy")}`;
+    if (
+      format(weekStart, "MMM yyyy", { locale: dateLocale }) ===
+      format(weekEnd, "MMM yyyy", { locale: dateLocale })
+    ) {
+      return `${format(weekStart, "MMM d", { locale: dateLocale })} - ${format(
+        weekEnd,
+        "d, yyyy",
+        { locale: dateLocale },
+      )}`;
     }
 
-    return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`;
+    return `${format(weekStart, "MMM d", { locale: dateLocale })} - ${format(
+      weekEnd,
+      "MMM d, yyyy",
+      { locale: dateLocale },
+    )}`;
   }
 
-  return format(focusDate, "MMMM yyyy");
+  return format(focusDate, t(locale, "format.rangeMonth"), { locale: dateLocale });
 }
 
 function shiftFocusDate(date: Date, viewMode: CalendarViewMode, direction: "prev" | "next") {
@@ -352,6 +368,7 @@ function buildCalendarItems(
   appointments: AppointmentRecord[],
   blackoutDates: BlackoutRecord[],
   selectedStaffId: string,
+  locale: AppLocale,
 ) {
   const appointmentItems: CalendarItem[] = appointments
     .map((appointment) => ({
@@ -372,8 +389,8 @@ function buildCalendarItems(
       kind: "blackout" as const,
       startsAt: blackout.startsAt,
       endsAt: blackout.endsAt,
-      title: blackout.reason ?? "Blocked time",
-      subtitle: blackout.staffMember?.name ?? "Entire business",
+      title: blackout.reason ?? t(locale, "common.blockedTime"),
+      subtitle: blackout.staffMember?.name ?? t(locale, "common.entireBusiness"),
       blackout,
       staffMemberId: blackout.staffMemberId,
     }))
@@ -413,13 +430,18 @@ function getWorkingWindowsForDay(
   return intersectDateWindows(staffWindows, businessWindows);
 }
 
-function getWindowSummary(windows: WorkingWindow[]) {
+function getWindowSummary(windows: WorkingWindow[], locale: AppLocale) {
   if (windows.length === 0) {
-    return "Closed";
+    return t(locale, "common.closed");
   }
 
   return windows
-    .map((window) => `${format(window.startAt, "h:mm a")} - ${format(window.endAt, "h:mm a")}`)
+    .map(
+      (window) =>
+        `${format(window.startAt, "h:mm a", {
+          locale: getDateFnsLocale(locale),
+        })} - ${format(window.endAt, "h:mm a", { locale: getDateFnsLocale(locale) })}`,
+    )
     .join(", ");
 }
 
@@ -568,19 +590,19 @@ function getPositionedItemsForDay(
   return positionedItems;
 }
 
-function getBlackoutTimingStatus(blackout: BlackoutRecord, now: Date) {
+function getBlackoutTimingStatus(blackout: BlackoutRecord, now: Date, locale: AppLocale) {
   if (blackout.startsAt.getTime() <= now.getTime() && blackout.endsAt.getTime() > now.getTime()) {
-    return "Active now";
+    return t(locale, "admin.calendar.activeNow");
   }
 
   if (blackout.startsAt.getTime() > now.getTime()) {
-    return "Upcoming";
+    return t(locale, "admin.calendar.upcoming");
   }
 
-  return "Past";
+  return t(locale, "admin.calendar.past");
 }
 
-function matchesBlackoutSearch(blackout: BlackoutRecord, query: string) {
+function matchesBlackoutSearch(blackout: BlackoutRecord, query: string, locale: AppLocale) {
   if (!query) {
     return true;
   }
@@ -589,8 +611,8 @@ function matchesBlackoutSearch(blackout: BlackoutRecord, query: string) {
 
   return [
     blackout.reason ?? "",
-    blackout.staffMember?.name ?? "Entire business",
-    formatBlackoutRange(blackout.startsAt, blackout.endsAt),
+    blackout.staffMember?.name ?? t(locale, "common.entireBusiness"),
+    formatBlackoutRange(blackout.startsAt, blackout.endsAt, locale),
   ].some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
@@ -675,28 +697,37 @@ function createBusinessHoursSeed(entry: BusinessHoursDay): BusinessHoursModalSee
   };
 }
 
-function formatBusinessPeriodLabel(dayOfWeek: number, openTime: string, closeTime: string) {
+function formatBusinessPeriodLabel(
+  dayOfWeek: number,
+  openTime: string,
+  closeTime: string,
+  locale: AppLocale,
+) {
   const referenceDate = getReferenceDateForDay(dayOfWeek);
+  const dateLocale = getDateFnsLocale(locale);
 
-  return `${format(combineDateAndTime(referenceDate, openTime), "h:mm a")} - ${format(
-    combineDateAndTime(referenceDate, closeTime),
-    "h:mm a",
-  )}`;
+  return `${format(combineDateAndTime(referenceDate, openTime), "h:mm a", {
+    locale: dateLocale,
+  })} - ${format(combineDateAndTime(referenceDate, closeTime), "h:mm a", {
+    locale: dateLocale,
+  })}`;
 }
 
-function formatBusinessHoursLabel(entry: BusinessHoursDay) {
+function formatBusinessHoursLabel(entry: BusinessHoursDay, locale: AppLocale) {
   if (entry.isClosed && entry.periods.length === 0) {
-    return "Closed all day";
+    return t(locale, "admin.calendar.closedAllDayLabel");
   }
 
   const periodLabel = entry.periods
     .map((period) =>
-      formatBusinessPeriodLabel(entry.dayOfWeek, period.openTime, period.closeTime),
+      formatBusinessPeriodLabel(entry.dayOfWeek, period.openTime, period.closeTime, locale),
     )
     .join(", ");
 
   if (entry.isClosed) {
-    return `Closed all day. Saved Business periods: ${periodLabel}`;
+    return t(locale, "admin.calendar.closedSavedPeriods", {
+      periods: periodLabel,
+    });
   }
 
   return periodLabel;
@@ -787,6 +818,7 @@ function CalendarToolbar({
   selectedStaffId,
   onSelectedStaffIdChange,
   staffMembers,
+  locale,
 }: {
   viewMode: CalendarViewMode;
   onViewModeChange: (value: CalendarViewMode) => void;
@@ -797,6 +829,7 @@ function CalendarToolbar({
   selectedStaffId: string;
   onSelectedStaffIdChange: (value: string) => void;
   staffMembers: StaffRecord[];
+  locale: AppLocale;
 }) {
   return (
     <section className="admin-panel px-4 py-4 sm:px-5">
@@ -807,21 +840,21 @@ function CalendarToolbar({
             onClick={onPrevious}
             className="admin-button-secondary"
           >
-            Previous
+            {t(locale, "common.previous")}
           </button>
           <button
             type="button"
             onClick={onToday}
             className="admin-button-secondary"
           >
-            Today
+            {t(locale, "common.today")}
           </button>
           <button
             type="button"
             onClick={onNext}
             className="admin-button-secondary"
           >
-            Next
+            {t(locale, "common.next")}
           </button>
         </div>
 
@@ -833,7 +866,7 @@ function CalendarToolbar({
 
         <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
           <label className="sr-only" htmlFor="calendar-staff-scope">
-            Staff scope
+            {t(locale, "admin.calendar.staffScope")}
           </label>
           <div className="relative">
             <select
@@ -842,11 +875,11 @@ function CalendarToolbar({
               onChange={(event) => onSelectedStaffIdChange(event.target.value)}
               className="admin-select h-11 min-w-[11rem] appearance-none rounded-full px-4 pr-10 text-sm font-semibold"
             >
-              <option value="all">All staff</option>
+              <option value="all">{t(locale, "common.allStaff")}</option>
               {staffMembers.map((staffMember) => (
                 <option key={staffMember.id} value={staffMember.id}>
                   {staffMember.name}
-                  {staffMember.isActive ? "" : " (inactive)"}
+                  {staffMember.isActive ? "" : t(locale, "common.inactiveSuffix")}
                 </option>
               ))}
             </select>
@@ -867,7 +900,7 @@ function CalendarToolbar({
           </div>
 
           <div className="flex rounded-full border border-slate-300 bg-white p-1">
-            {calendarViewOptions.map((option) => (
+            {getCalendarViewOptions(locale).map((option) => (
               <button
                 key={option.value}
                 type="button"
@@ -888,22 +921,24 @@ function CalendarToolbar({
   );
 }
 
-function CalendarLegendCard() {
+function CalendarLegendCard({ locale }: { locale: AppLocale }) {
   return (
     <section className="admin-card p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">Legend</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
+        {t(locale, "admin.calendar.legend")}
+      </p>
       <div className="mt-4 grid gap-3 text-sm">
         <div className="flex items-center gap-3">
           <span className="h-3.5 w-3.5 rounded-full bg-slate-900" />
-          <span>Appointments</span>
+          <span>{t(locale, "common.appointments")}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="h-3.5 w-3.5 rounded-full bg-amber-200" />
-          <span>Blackout dates</span>
+          <span>{t(locale, "admin.calendar.blackoutDates")}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="h-3.5 w-3.5 rounded-full bg-slate-200 ring-1 ring-slate-300" />
-          <span>Working hours overlay</span>
+          <span>{t(locale, "admin.calendar.workingHoursOverlay")}</span>
         </div>
       </div>
     </section>
@@ -917,6 +952,7 @@ function PeriodSnapshotCard({
   visibleBlackoutsCount,
   selectedItem,
   onEditBlackout,
+  locale,
 }: {
   rangeLabel: string;
   selectedStaffMember: StaffRecord | null;
@@ -924,31 +960,32 @@ function PeriodSnapshotCard({
   visibleBlackoutsCount: number;
   selectedItem: CalendarItem | null;
   onEditBlackout: (blackout: BlackoutRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <section className="admin-card p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-            Period snapshot
+            {t(locale, "admin.calendar.periodSnapshot")}
           </p>
           <h3 className="mt-2 text-xl font-semibold text-slate-900">{rangeLabel}</h3>
         </div>
         <span className="rounded-full border border-border bg-surface px-3 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted">
-          {selectedStaffMember ? selectedStaffMember.name : "All staff"}
+          {selectedStaffMember ? selectedStaffMember.name : t(locale, "common.allStaff")}
         </span>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="admin-muted-panel px-4 py-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            Appointments
+            {t(locale, "common.appointments")}
           </p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{visibleAppointmentsCount}</p>
         </div>
         <div className="admin-muted-panel px-4 py-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            Blackout dates
+            {t(locale, "admin.calendar.blackoutDates")}
           </p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{visibleBlackoutsCount}</p>
         </div>
@@ -960,13 +997,17 @@ function PeriodSnapshotCard({
             <div className="grid gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                  Selected blackout
+                  {t(locale, "admin.calendar.selectedBlackout")}
                 </p>
                 <p className="mt-2 text-base font-semibold">
-                  {selectedItem.blackout.reason ?? "Blocked time"}
+                  {selectedItem.blackout.reason ?? t(locale, "common.blockedTime")}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {formatBlackoutRange(selectedItem.blackout.startsAt, selectedItem.blackout.endsAt)}
+                  {formatBlackoutRange(
+                    selectedItem.blackout.startsAt,
+                    selectedItem.blackout.endsAt,
+                    locale,
+                  )}
                 </p>
               </div>
               <button
@@ -974,36 +1015,36 @@ function PeriodSnapshotCard({
                 onClick={() => onEditBlackout(selectedItem.blackout)}
                 className="admin-button-secondary w-fit"
               >
-                Edit blackout date
+                {t(locale, "admin.calendar.editBlackoutDate")}
               </button>
             </div>
           ) : (
             <div className="grid gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                  Selected appointment
+                  {t(locale, "admin.calendar.selectedAppointment")}
                 </p>
                 <p className="mt-2 text-base font-semibold">{selectedItem.appointment.service.name}</p>
                 <p className="mt-1 text-sm text-muted">
                   {selectedItem.appointment.customerName} ·{" "}
-                  {formatAppointmentDateTime(selectedItem.appointment.startAt)}
+                  {formatAppointmentDateTime(selectedItem.appointment.startAt, locale)}
                 </p>
               </div>
               <Link
                 href="/admin/appointments"
                 className="admin-button-secondary w-fit"
               >
-                Open appointments
+                {t(locale, "admin.calendar.openAppointments")}
               </Link>
             </div>
           )
         ) : (
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-              Selection
+              {t(locale, "admin.calendar.selection")}
             </p>
             <p className="mt-2 text-sm text-muted">
-              Select an appointment or blackout date in the calendar for a quick summary here.
+              {t(locale, "admin.calendar.selectionHint")}
             </p>
           </div>
         )}
@@ -1019,6 +1060,7 @@ function MonthView({
   selectedItemKey,
   workingWindowsByDay,
   onSelectItem,
+  locale,
 }: {
   focusDate: Date;
   days: Date[];
@@ -1026,8 +1068,9 @@ function MonthView({
   selectedItemKey: string | null;
   workingWindowsByDay: WorkingWindow[][];
   onSelectItem: (item: CalendarItem) => void;
+  locale: AppLocale;
 }) {
-  const dayNames = dayOptions.map((day) => day.label.slice(0, 3));
+  const dayNames = getLocalizedDayOptions(locale).map((day) => day.label.slice(0, 3));
 
   return (
     <section className="admin-list-shell rounded-[1.25rem]">
@@ -1069,7 +1112,9 @@ function MonthView({
                 >
                   {format(day, "d")}
                 </p>
-                <p className="mt-2 text-[0.7rem] text-muted">{getWindowSummary(dayWindows)}</p>
+                <p className="mt-2 text-[0.7rem] text-muted">
+                  {getWindowSummary(dayWindows, locale)}
+                </p>
               </div>
 
               <div className="mt-4 grid gap-2">
@@ -1088,7 +1133,7 @@ function MonthView({
                     }`}
                   >
                     <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] opacity-80">
-                      {format(item.startsAt, "h:mm a")}
+                      {format(item.startsAt, "h:mm a", { locale: getDateFnsLocale(locale) })}
                     </p>
                     <p className="mt-1 line-clamp-1 text-sm font-semibold">{item.title}</p>
                     <p className="line-clamp-1 text-xs opacity-75">{item.subtitle}</p>
@@ -1097,7 +1142,7 @@ function MonthView({
 
                 {overflowCount > 0 ? (
                   <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-                    +{overflowCount} more
+                    {t(locale, "admin.calendar.more", { count: overflowCount })}
                   </p>
                 ) : null}
               </div>
@@ -1115,12 +1160,14 @@ function TimeGridView({
   selectedItemKey,
   workingWindowsByDay,
   onSelectItem,
+  locale,
 }: {
   days: Date[];
   items: CalendarItem[];
   selectedItemKey: string | null;
   workingWindowsByDay: WorkingWindow[][];
   onSelectItem: (item: CalendarItem) => void;
+  locale: AppLocale;
 }) {
   const { startHour, endHour } = getGridBounds(days, items, workingWindowsByDay);
   const totalHours = Math.max(1, endHour - startHour);
@@ -1145,7 +1192,7 @@ function TimeGridView({
               className={`bg-surface/80 px-3 py-4 sm:px-4 ${index === days.length - 1 ? "" : "border-r border-border"}`}
             >
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-muted">
-                {format(day, "EEE")}
+                {format(day, "EEE", { locale: getDateFnsLocale(locale) })}
               </p>
               <div className={`mt-2 ${isMultiDay ? "grid gap-1" : "flex items-center gap-3"}`}>
                 <p
@@ -1156,7 +1203,7 @@ function TimeGridView({
                   {format(day, "d")}
                 </p>
                 <p className="line-clamp-2 text-[0.7rem] leading-4 text-muted sm:text-xs">
-                  {getWindowSummary(workingWindowsByDay[index] ?? [])}
+                  {getWindowSummary(workingWindowsByDay[index] ?? [], locale)}
                 </p>
               </div>
             </div>
@@ -1177,7 +1224,11 @@ function TimeGridView({
                   className="absolute inset-x-0 flex -translate-y-1/2 items-center justify-end pr-3 text-xs text-muted"
                   style={{ top: (hour - startHour + 0.5) * GRID_HOUR_HEIGHT }}
                 >
-                  {format(combineDateAndTime(new Date(), `${String(hour).padStart(2, "0")}:00`), "h a")}
+                  {format(
+                    combineDateAndTime(new Date(), `${String(hour).padStart(2, "0")}:00`),
+                    "h a",
+                    { locale: getDateFnsLocale(locale) },
+                  )}
                 </div>
               ))}
             </div>
@@ -1241,7 +1292,9 @@ function TimeGridView({
                       }}
                     >
                       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] opacity-80">
-                        {format(item.startsAt, "h:mm a")}
+                        {format(item.startsAt, "h:mm a", {
+                          locale: getDateFnsLocale(locale),
+                        })}
                       </p>
                       <p className="mt-1 line-clamp-1 text-sm font-semibold">{item.title}</p>
                       <p className="line-clamp-2 text-xs opacity-75">{item.subtitle}</p>
@@ -1257,7 +1310,13 @@ function TimeGridView({
   );
 }
 
-function SaveBlackoutButton({ isEditing }: { isEditing: boolean }) {
+function SaveBlackoutButton({
+  isEditing,
+  locale,
+}: {
+  isEditing: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -1266,12 +1325,18 @@ function SaveBlackoutButton({ isEditing }: { isEditing: boolean }) {
       disabled={pending}
       className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save blackout date" : "Create blackout date"}
+      {pending
+        ? isEditing
+          ? t(locale, "common.saving")
+          : t(locale, "common.creating")
+        : isEditing
+          ? t(locale, "admin.calendar.saveBlackout")
+          : t(locale, "admin.calendar.createBlackout")}
     </button>
   );
 }
 
-function DeleteBlackoutButton() {
+function DeleteBlackoutButton({ locale }: { locale: AppLocale }) {
   const { pending } = useFormStatus();
 
   return (
@@ -1280,7 +1345,7 @@ function DeleteBlackoutButton() {
       disabled={pending}
       className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "Deleting..." : "Delete blackout date"}
+      {pending ? t(locale, "common.deleting") : t(locale, "admin.calendar.deleteBlackout")}
     </button>
   );
 }
@@ -1289,10 +1354,12 @@ function BlackoutModalForm({
   seed,
   staffMembers,
   onClose,
+  locale,
 }: {
   seed: BlackoutModalSeed;
   staffMembers: StaffRecord[];
   onClose: () => void;
+  locale: AppLocale;
 }) {
   const router = useRouter();
   const [saveState, saveAction] = useActionState(
@@ -1316,6 +1383,7 @@ function BlackoutModalForm({
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
         <input type="hidden" name="blackoutDateId" defaultValue={seed.blackoutDateId ?? ""} />
+        <input type="hidden" name="locale" value={locale} />
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner">
@@ -1324,17 +1392,17 @@ function BlackoutModalForm({
         ) : null}
 
         <label className="grid gap-2 text-sm font-medium">
-          Applies to
+          {t(locale, "admin.calendar.appliesTo")}
           <select
             name="staffMemberId"
             defaultValue={seed.staffMemberId}
             className="admin-select"
           >
-            <option value="">Entire business</option>
+            <option value="">{t(locale, "common.entireBusiness")}</option>
             {staffMembers.map((staffMember) => (
               <option key={staffMember.id} value={staffMember.id}>
                 {staffMember.name}
-                {staffMember.isActive ? "" : " (inactive)"}
+                {staffMember.isActive ? "" : t(locale, "common.inactiveSuffix")}
               </option>
             ))}
           </select>
@@ -1343,7 +1411,7 @@ function BlackoutModalForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
-            Starts
+            {t(locale, "admin.calendar.starts")}
             <input
               name="startsAt"
               type="datetime-local"
@@ -1355,7 +1423,7 @@ function BlackoutModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Ends
+            {t(locale, "admin.calendar.ends")}
             <input
               name="endsAt"
               type="datetime-local"
@@ -1368,24 +1436,24 @@ function BlackoutModalForm({
         </div>
 
         <label className="grid gap-2 text-sm font-medium">
-          Reason
+          {t(locale, "admin.calendar.reason")}
           <input
             name="reason"
             defaultValue={seed.reason}
-            placeholder="Studio closure, training, meeting, vacation..."
+            placeholder={t(locale, "admin.calendar.reasonPlaceholder")}
             className="admin-input"
           />
           <FormErrorText error={saveState.fieldErrors.reason} />
         </label>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          <SaveBlackoutButton isEditing={isEditing} />
+          <SaveBlackoutButton isEditing={isEditing} locale={locale} />
           <button
             type="button"
             onClick={onClose}
             className="admin-button-secondary"
           >
-            Cancel
+            {t(locale, "common.cancel")}
           </button>
         </div>
       </form>
@@ -1395,16 +1463,17 @@ function BlackoutModalForm({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
-                Danger zone
+                {t(locale, "admin.services.danger")}
               </p>
               <p className="mt-2 text-sm leading-7 text-muted">
-                Delete this blackout date only if the time should become available again.
+                {t(locale, "admin.calendar.deleteBlackoutDescription")}
               </p>
             </div>
 
             <form action={deleteAction}>
               <input type="hidden" name="blackoutDateId" defaultValue={seed.blackoutDateId ?? ""} />
-              <DeleteBlackoutButton />
+              <input type="hidden" name="locale" value={locale} />
+              <DeleteBlackoutButton locale={locale} />
             </form>
           </div>
 
@@ -1417,7 +1486,13 @@ function BlackoutModalForm({
   );
 }
 
-function SaveBusinessHoursButton({ disabled }: { disabled: boolean }) {
+function SaveBusinessHoursButton({
+  disabled,
+  locale,
+}: {
+  disabled: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -1426,7 +1501,7 @@ function SaveBusinessHoursButton({ disabled }: { disabled: boolean }) {
       disabled={pending || disabled}
       className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "Saving..." : "Save business hours"}
+      {pending ? t(locale, "common.saving") : t(locale, "admin.calendar.saveBusinessHours")}
     </button>
   );
 }
@@ -1434,9 +1509,11 @@ function SaveBusinessHoursButton({ disabled }: { disabled: boolean }) {
 function BusinessHoursModalForm({
   seed,
   onClose,
+  locale,
 }: {
   seed: BusinessHoursModalSeed;
   onClose: () => void;
+  locale: AppLocale;
 }) {
   const router = useRouter();
   const [isClosed, setIsClosed] = useState(seed.isClosed);
@@ -1451,6 +1528,7 @@ function BusinessHoursModalForm({
   const validation = validateBusinessPeriods({
     periods,
     isClosed,
+    locale,
   });
   const showServerErrors = submittedVersion === editVersion;
   const periodSectionError =
@@ -1537,14 +1615,19 @@ function BusinessHoursModalForm({
       onSubmit={() => setSubmittedVersion(editVersion)}
     >
       <input type="hidden" name="dayOfWeek" value={seed.dayOfWeek} />
+      <input type="hidden" name="locale" value={locale} />
 
       <ErrorBanner
         message={showServerErrors && saveState.status === "error" ? saveState.message ?? undefined : undefined}
       />
 
       <div className="admin-muted-panel px-4 py-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Day</p>
-        <p className="mt-2 text-2xl font-semibold text-slate-900">{getDayLabel(seed.dayOfWeek)}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+          {t(locale, "admin.calendar.dayLabel")}
+        </p>
+        <p className="mt-2 text-2xl font-semibold text-slate-900">
+          {getLocalizedDayLabel(seed.dayOfWeek, locale)}
+        </p>
       </div>
 
       <label className="flex items-center gap-3 text-sm font-medium">
@@ -1555,7 +1638,7 @@ function BusinessHoursModalForm({
           onChange={(event) => handleClosedChange(event.target.checked)}
           className="admin-checkbox"
         />
-        Closed all day
+        {t(locale, "admin.calendar.closedAllDay")}
       </label>
       <FormErrorText error={showServerErrors ? saveState.fieldErrors.isClosed : undefined} />
 
@@ -1563,16 +1646,18 @@ function BusinessHoursModalForm({
         <div className="admin-muted-panel px-4 py-4">
           <p className="text-sm text-muted">
             {isClosed
-              ? "This day is closed for booking. Existing Business periods stay saved below and will come back if you reopen the day."
-              : "Add up to 5 Business periods. Each period must have a start and end time, stay in chronological order, and cannot overlap another period."}
+              ? t(locale, "admin.calendar.closedDayDescription")
+              : t(locale, "admin.calendar.openDayDescription")}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-slate-900">Business periods</p>
+            <p className="text-sm font-medium text-slate-900">
+              {t(locale, "admin.calendar.businessPeriods")}
+            </p>
             <p className="mt-1 text-sm text-muted">
-              Back-to-back Business periods are allowed. Overnight periods are not.
+              {t(locale, "admin.calendar.businessPeriodsDescription")}
             </p>
           </div>
 
@@ -1582,15 +1667,15 @@ function BusinessHoursModalForm({
             disabled={isClosed || isAtMaxPeriods}
             className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Add Business period
+            {t(locale, "admin.calendar.addBusinessPeriod")}
           </button>
         </div>
 
         {periods.length === 0 ? (
           <div className="admin-card-dashed px-5 py-5 text-sm text-muted">
             {isClosed
-              ? "No Business periods are saved for this closed day yet. Reopen it to add the first Business period."
-              : "Add at least 1 Business period before saving this open day."}
+              ? t(locale, "admin.calendar.noPeriodsClosed")
+              : t(locale, "admin.calendar.noPeriodsOpen")}
           </div>
         ) : (
           <div className="grid gap-3">
@@ -1616,7 +1701,7 @@ function BusinessHoursModalForm({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-slate-900">
-                      Business period {index + 1}
+                      {t(locale, "admin.calendar.businessPeriod", { number: index + 1 })}
                     </p>
                     <button
                       type="button"
@@ -1624,13 +1709,13 @@ function BusinessHoursModalForm({
                       disabled={isClosed}
                       className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Remove
+                      {t(locale, "admin.calendar.remove")}
                     </button>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 text-sm font-medium">
-                      Opens
+                      {t(locale, "admin.calendar.opens")}
                       {isClosed ? (
                         <>
                           <input
@@ -1660,7 +1745,7 @@ function BusinessHoursModalForm({
                     </label>
 
                     <label className="grid gap-2 text-sm font-medium">
-                      Closes
+                      {t(locale, "admin.calendar.closes")}
                       {isClosed ? (
                         <>
                           <input
@@ -1704,21 +1789,28 @@ function BusinessHoursModalForm({
         <FormErrorText error={periodSectionError} />
         <p className="text-sm text-muted">
           {isAtMaxPeriods
-            ? `You have reached the ${MAX_BUSINESS_PERIODS_PER_DAY}-period limit for this day.`
-            : `${periods.length} of ${MAX_BUSINESS_PERIODS_PER_DAY} Business periods used for this day.`}
+            ? t(locale, "admin.calendar.reachedPeriodLimit", {
+                count: MAX_BUSINESS_PERIODS_PER_DAY,
+              })
+            : t(locale, "admin.calendar.periodsUsed", {
+                used: periods.length,
+                max: MAX_BUSINESS_PERIODS_PER_DAY,
+              })}
         </p>
       </div>
 
       <div className="grid gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-900">Copy Business periods to other days</p>
+          <p className="text-sm font-medium text-slate-900">
+            {t(locale, "admin.calendar.copyPeriods")}
+          </p>
           <p className="mt-1 text-sm text-muted">
-            Choose one or more target days to replace with this day’s Business periods.
+            {t(locale, "admin.calendar.copyPeriodsDescription")}
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {dayOptions
+          {getLocalizedDayOptions(locale)
             .filter((day) => day.value !== seed.dayOfWeek)
             .map((day) => (
               <label
@@ -1743,22 +1835,22 @@ function BusinessHoursModalForm({
 
         <p className="text-sm text-muted">
           {isClosed
-            ? "Reopen this day to copy its saved Business periods elsewhere."
+            ? t(locale, "admin.calendar.copyClosedHint")
             : validation.sortedPeriods.length === 0
-              ? "Add at least 1 valid Business period before copying to other days."
-              : "Copying replaces the selected target days and reopens them with the same Business periods."}
+              ? t(locale, "admin.calendar.copyNeedPeriodHint")
+              : t(locale, "admin.calendar.copyReadyHint")}
         </p>
         <FormErrorText error={copyError} />
       </div>
 
       <div className="flex flex-wrap gap-3 pt-2">
-        <SaveBusinessHoursButton disabled={saveDisabled} />
+        <SaveBusinessHoursButton disabled={saveDisabled} locale={locale} />
         <button
           type="button"
           onClick={onClose}
           className="admin-button-secondary"
         >
-          Cancel
+          {t(locale, "common.cancel")}
         </button>
       </div>
     </form>
@@ -1811,6 +1903,7 @@ function BlackoutControls({
   visibleCount,
   totalCount,
   onResetFilters,
+  locale,
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -1824,12 +1917,13 @@ function BlackoutControls({
   visibleCount: number;
   totalCount: number;
   onResetFilters: () => void;
+  locale: AppLocale;
 }) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 xl:grid-cols-[minmax(16rem,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto] xl:items-center">
         <label className="grid gap-2 text-sm font-medium">
-          <span className="sr-only">Search blackout dates</span>
+          <span className="sr-only">{t(locale, "admin.calendar.searchBlackouts")}</span>
           <div className="relative">
             <span className="pointer-events-none absolute inset-y-0 left-5 flex items-center text-muted">
               <svg
@@ -1850,14 +1944,14 @@ function BlackoutControls({
               type="search"
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search blackout dates"
+              placeholder={t(locale, "admin.calendar.searchBlackouts")}
               className="admin-input admin-input-with-leading-icon h-12 rounded-[1rem] text-sm"
             />
           </div>
         </label>
 
         <label className="sr-only" htmlFor="blackout-scope-filter">
-          Scope
+          {t(locale, "admin.calendar.scope")}
         </label>
         <div className="relative">
           <select
@@ -1866,7 +1960,7 @@ function BlackoutControls({
             onChange={(event) => onScopeFilterChange(event.target.value as BlackoutScopeFilter)}
             className="admin-select admin-select-with-trailing-icon h-12 appearance-none rounded-[1rem] text-sm font-semibold"
           >
-            {blackoutScopeOptions.map((option) => (
+            {getBlackoutScopeOptions(locale).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -1889,7 +1983,7 @@ function BlackoutControls({
         </div>
 
         <label className="sr-only" htmlFor="blackout-time-filter">
-          Timing
+          {t(locale, "admin.calendar.timing")}
         </label>
         <div className="relative">
           <select
@@ -1898,7 +1992,7 @@ function BlackoutControls({
             onChange={(event) => onTimeFilterChange(event.target.value as BlackoutTimeFilter)}
             className="admin-select admin-select-with-trailing-icon h-12 appearance-none rounded-[1rem] text-sm font-semibold"
           >
-            {blackoutTimeOptions.map((option) => (
+            {getBlackoutTimeOptions(locale).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -1921,13 +2015,20 @@ function BlackoutControls({
         </div>
 
         <div className="flex justify-start xl:justify-end">
-          <CollectionViewModeButton viewMode={viewMode} onChange={onViewModeChange} />
+          <CollectionViewModeButton
+            viewMode={viewMode}
+            onChange={onViewModeChange}
+            locale={locale}
+          />
         </div>
       </div>
 
       <div className="flex min-h-[1.75rem] flex-wrap items-center gap-3 text-sm leading-6 text-muted">
         <span>
-          Showing {visibleCount} of {totalCount} blackout dates.
+          {t(locale, "admin.calendar.showingBlackouts", {
+            visible: visibleCount,
+            total: totalCount,
+          })}
         </span>
         {hasFilters ? (
           <button
@@ -1935,7 +2036,7 @@ function BlackoutControls({
             onClick={onResetFilters}
             className="admin-link"
           >
-            Clear filters
+            {t(locale, "common.clearFilters")}
           </button>
         ) : null}
       </div>
@@ -1943,7 +2044,7 @@ function BlackoutControls({
   );
 }
 
-function AddBlackoutCard({ onCreate }: { onCreate: () => void }) {
+function AddBlackoutCard({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -1967,9 +2068,11 @@ function AddBlackoutCard({ onCreate }: { onCreate: () => void }) {
       </div>
 
       <div>
-        <p className="text-xl font-semibold text-slate-900">Add blackout date</p>
+        <p className="text-xl font-semibold text-slate-900">
+          {t(locale, "admin.calendar.addBlackout")}
+        </p>
         <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
-          Create closures, time off, or staff-specific exceptions.
+          {t(locale, "admin.calendar.addBlackoutDescription")}
         </p>
       </div>
     </button>
@@ -1979,19 +2082,23 @@ function AddBlackoutCard({ onCreate }: { onCreate: () => void }) {
 function BlackoutCard({
   blackout,
   onEdit,
+  locale,
 }: {
   blackout: BlackoutRecord;
   onEdit: (blackout: BlackoutRecord) => void;
+  locale: AppLocale;
 }) {
-  const timingStatus = getBlackoutTimingStatus(blackout, new Date());
+  const timingStatus = getBlackoutTimingStatus(blackout, new Date(), locale);
 
   return (
     <article className="admin-card p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xl font-semibold text-slate-900">{blackout.reason ?? "Blocked time"}</p>
+          <p className="text-xl font-semibold text-slate-900">
+            {blackout.reason ?? t(locale, "common.blockedTime")}
+          </p>
           <p className="mt-2 text-sm text-muted">
-            {blackout.staffMember?.name ?? "Entire business"}
+            {blackout.staffMember?.name ?? t(locale, "common.entireBusiness")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1999,29 +2106,33 @@ function BlackoutCard({
             {timingStatus}
           </span>
           <EditIconButton
-            label={`Edit ${blackout.reason ?? "blackout date"}`}
+            label={t(locale, "admin.calendar.editBlackoutLabel", {
+              name: blackout.reason ?? t(locale, "admin.calendar.blackoutDates"),
+            })}
             onClick={() => onEdit(blackout)}
           />
         </div>
       </div>
 
       <p className="mt-4 text-sm leading-7 text-muted">
-        {formatBlackoutRange(blackout.startsAt, blackout.endsAt)}
+        {formatBlackoutRange(blackout.startsAt, blackout.endsAt, locale)}
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {blackout.staffMemberId ? "Staff-specific" : "Business-wide"}
+          {blackout.staffMemberId
+            ? t(locale, "admin.calendar.staffSpecific")
+            : t(locale, "admin.calendar.businessWide")}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {format(blackout.startsAt, "MMM d")}
+          {format(blackout.startsAt, "MMM d", { locale: getDateFnsLocale(locale) })}
         </span>
       </div>
     </article>
   );
 }
 
-function AddBlackoutListRow({ onCreate }: { onCreate: () => void }) {
+function AddBlackoutListRow({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -2045,8 +2156,12 @@ function AddBlackoutListRow({ onCreate }: { onCreate: () => void }) {
           </svg>
         </span>
         <div>
-          <p className="text-lg font-semibold text-slate-900">Add blackout date</p>
-          <p className="mt-1 text-sm text-muted">Create a new scheduling exception</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {t(locale, "admin.calendar.addBlackout")}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {t(locale, "admin.calendar.addBlackoutListDescription")}
+          </p>
         </div>
       </div>
     </button>
@@ -2056,37 +2171,45 @@ function AddBlackoutListRow({ onCreate }: { onCreate: () => void }) {
 function BlackoutListRow({
   blackout,
   onEdit,
+  locale,
 }: {
   blackout: BlackoutRecord;
   onEdit: (blackout: BlackoutRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-lg font-semibold text-slate-900">{blackout.reason ?? "Blocked time"}</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {blackout.reason ?? t(locale, "common.blockedTime")}
+          </p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {blackout.staffMemberId ? "Staff-specific" : "Business-wide"}
+            {blackout.staffMemberId
+              ? t(locale, "admin.calendar.staffSpecific")
+              : t(locale, "admin.calendar.businessWide")}
           </span>
         </div>
         <p className="mt-2 line-clamp-2 text-sm text-muted">
-          {blackout.staffMember?.name ?? "Entire business"} ·{" "}
-          {formatBlackoutRange(blackout.startsAt, blackout.endsAt)}
+          {blackout.staffMember?.name ?? t(locale, "common.entireBusiness")} ·{" "}
+          {formatBlackoutRange(blackout.startsAt, blackout.endsAt, locale)}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {getBlackoutTimingStatus(blackout, new Date())}
+          {getBlackoutTimingStatus(blackout, new Date(), locale)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {format(blackout.startsAt, "MMM d")}
+          {format(blackout.startsAt, "MMM d", { locale: getDateFnsLocale(locale) })}
         </span>
       </div>
 
       <div className="flex justify-start md:justify-end">
         <EditIconButton
-          label={`Edit ${blackout.reason ?? "blackout date"}`}
+          label={t(locale, "admin.calendar.editBlackoutLabel", {
+            name: blackout.reason ?? t(locale, "admin.calendar.blackoutDates"),
+          })}
           onClick={() => onEdit(blackout)}
         />
       </div>
@@ -2098,20 +2221,24 @@ function EmptyBlackoutResults({
   hasFilters,
   onResetFilters,
   onCreate,
+  locale,
 }: {
   hasFilters: boolean;
   onResetFilters: () => void;
   onCreate: () => void;
+  locale: AppLocale;
 }) {
   return (
     <div className="admin-card-dashed px-6 py-10 text-center">
       <h2 className="text-xl font-semibold text-slate-900">
-        {hasFilters ? "No blackout dates match these filters." : "No blackout dates yet."}
+        {hasFilters
+          ? t(locale, "admin.calendar.noBlackoutsMatch")
+          : t(locale, "admin.calendar.noBlackoutsYet")}
       </h2>
       <p className="mt-3 text-sm leading-7 text-muted">
         {hasFilters
-          ? "Try a different search or reset the current filters to bring the full blackout list back into view."
-          : "Add closures, time-off windows, or staff-specific exceptions from this workspace."}
+          ? t(locale, "admin.calendar.noBlackoutsMatchDescription")
+          : t(locale, "admin.calendar.noBlackoutsYetDescription")}
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         {hasFilters ? (
@@ -2120,7 +2247,7 @@ function EmptyBlackoutResults({
             onClick={onResetFilters}
             className="admin-button-secondary"
           >
-            Reset filters
+            {t(locale, "common.resetFilters")}
           </button>
         ) : null}
         <button
@@ -2128,7 +2255,7 @@ function EmptyBlackoutResults({
           onClick={onCreate}
           className="admin-button-primary"
         >
-          Add blackout date
+          {t(locale, "admin.calendar.addBlackout")}
         </button>
       </div>
     </div>
@@ -2138,39 +2265,48 @@ function EmptyBlackoutResults({
 function BusinessHoursListRow({
   entry,
   onEdit,
+  locale,
 }: {
   entry: BusinessHoursDay;
   onEdit: (entry: BusinessHoursDay) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-lg font-semibold text-slate-900">{getDayLabel(entry.dayOfWeek)}</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {getLocalizedDayLabel(entry.dayOfWeek, locale)}
+          </p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {entry.isClosed ? "Closed" : "Open"}
+            {entry.isClosed ? t(locale, "common.closed") : t(locale, "common.open")}
           </span>
         </div>
-        <p className="mt-2 text-sm text-muted">{formatBusinessHoursLabel(entry)}</p>
+        <p className="mt-2 text-sm text-muted">{formatBusinessHoursLabel(entry, locale)}</p>
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
           {entry.isClosed
             ? entry.periods.length > 0
-              ? "Saved for reopening"
-              : "No saved periods"
-            : "Calendar overlay active"}
+              ? t(locale, "admin.calendar.savedForReopening")
+              : t(locale, "admin.calendar.noSavedPeriods")
+            : t(locale, "admin.calendar.overlayActive")}
         </span>
         {entry.periods.length > 0 ? (
           <span className="rounded-full border border-border bg-surface px-3 py-2">
-            {entry.periods.length} Business period{entry.periods.length === 1 ? "" : "s"}
+            {t(locale, "admin.calendar.periodCount", { count: entry.periods.length })}
           </span>
         ) : null}
       </div>
 
       <div className="flex justify-start md:justify-end">
-        <EditIconButton label={`Edit ${getDayLabel(entry.dayOfWeek)}`} onClick={() => onEdit(entry)} />
+        <EditIconButton
+          label={t(locale, "admin.calendar.editDay", {
+            day: getLocalizedDayLabel(entry.dayOfWeek, locale),
+          })}
+          onClick={() => onEdit(entry)}
+        />
       </div>
     </article>
   );
@@ -2181,6 +2317,7 @@ export default function CalendarManager({
   staffMembers,
   appointments,
   blackoutDates,
+  locale,
 }: CalendarManagerProps) {
   const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(() =>
@@ -2205,7 +2342,7 @@ export default function CalendarManager({
       ? null
       : staffMembers.find((staffMember) => staffMember.id === selectedStaffId) ?? null;
 
-  const calendarItems = buildCalendarItems(appointments, blackoutDates, selectedStaffId);
+  const calendarItems = buildCalendarItems(appointments, blackoutDates, selectedStaffId, locale);
   const rangeStart = getCalendarRangeStart(focusDate, calendarViewMode);
   const rangeEnd = getCalendarRangeEnd(focusDate, calendarViewMode);
   const visibleRangeEnd = addDays(startOfDay(rangeEnd), 1);
@@ -2226,11 +2363,11 @@ export default function CalendarManager({
     selectedItemKey !== null
       ? visibleCalendarItems.find((item) => item.key === selectedItemKey) ?? null
       : null;
-  const rangeLabel = getRangeLabel(focusDate, calendarViewMode);
+  const rangeLabel = getRangeLabel(focusDate, calendarViewMode, locale);
 
   const now = new Date();
   const filteredBlackoutDates = blackoutDates
-    .filter((blackout) => matchesBlackoutSearch(blackout, deferredSearchQuery.trim()))
+    .filter((blackout) => matchesBlackoutSearch(blackout, deferredSearchQuery.trim(), locale))
     .filter((blackout) => matchesBlackoutScope(blackout, scopeFilter))
     .filter((blackout) => matchesBlackoutTime(blackout, timeFilter, now))
     .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
@@ -2287,6 +2424,7 @@ export default function CalendarManager({
           selectedStaffId={selectedStaffId}
           onSelectedStaffIdChange={setSelectedStaffId}
           staffMembers={staffMembers}
+          locale={locale}
         />
 
         {calendarViewMode === "month" ? (
@@ -2297,6 +2435,7 @@ export default function CalendarManager({
             selectedItemKey={selectedItemKey}
             workingWindowsByDay={workingWindowsByDay}
             onSelectItem={(item) => setSelectedItemKey(item.key)}
+            locale={locale}
           />
         ) : (
           <TimeGridView
@@ -2305,11 +2444,12 @@ export default function CalendarManager({
             selectedItemKey={selectedItemKey}
             workingWindowsByDay={workingWindowsByDay}
             onSelectItem={(item) => setSelectedItemKey(item.key)}
+            locale={locale}
           />
         )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
-          <CalendarLegendCard />
+          <CalendarLegendCard locale={locale} />
           <PeriodSnapshotCard
             rangeLabel={rangeLabel}
             selectedStaffMember={selectedStaffMember}
@@ -2317,26 +2457,31 @@ export default function CalendarManager({
             visibleBlackoutsCount={visibleBlackoutsCount}
             selectedItem={selectedItem}
             onEditBlackout={openEditBlackoutModal}
+            locale={locale}
           />
         </div>
 
         <div className="grid gap-4">
           <section className="admin-panel p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
-              Scheduling configuration
+              {t(locale, "admin.calendar.schedulingConfiguration")}
             </p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-900">Calendar settings</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900">
+              {t(locale, "admin.calendar.calendarSettings")}
+            </h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
-              Keep schedule rules organized below the calendar. Blackout dates and business hours live in separate configuration cards for a cleaner workspace.
+              {t(locale, "admin.calendar.configurationDescription")}
             </p>
           </section>
 
           <section className="admin-panel p-6">
             <div className="grid gap-5">
               <div>
-                <h3 className="text-xl font-semibold text-slate-900">Blackout dates</h3>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {t(locale, "admin.calendar.blackoutDates")}
+                </h3>
                 <p className="mt-2 text-sm leading-7 text-muted">
-                  Search, filter, edit, and create unavailable periods from the same admin pattern used across the rest of the dashboard.
+                  {t(locale, "admin.calendar.blackoutDescription")}
                 </p>
               </div>
 
@@ -2353,6 +2498,7 @@ export default function CalendarManager({
                 visibleCount={filteredBlackoutDates.length}
                 totalCount={blackoutDates.length}
                 onResetFilters={resetBlackoutFilters}
+                locale={locale}
               />
 
               {filteredBlackoutDates.length === 0 ? (
@@ -2360,6 +2506,7 @@ export default function CalendarManager({
                   hasFilters={hasBlackoutFilters}
                   onResetFilters={resetBlackoutFilters}
                   onCreate={openCreateBlackoutModal}
+                  locale={locale}
                 />
               ) : (
                 <CollectionViewTransition
@@ -2369,12 +2516,14 @@ export default function CalendarManager({
                       <AddBlackoutCard
                         key="create-blackout"
                         onCreate={openCreateBlackoutModal}
+                        locale={locale}
                       />
                       {filteredBlackoutDates.map((blackout) => (
                         <BlackoutCard
                           key={blackout.id}
                           blackout={blackout}
                           onEdit={openEditBlackoutModal}
+                          locale={locale}
                         />
                       ))}
                     </CardGrid>
@@ -2384,10 +2533,15 @@ export default function CalendarManager({
                       <AddBlackoutListRow
                         key="create-blackout-row"
                         onCreate={openCreateBlackoutModal}
+                        locale={locale}
                       />
                       {filteredBlackoutDates.map((blackout) => (
                         <div key={blackout.id} className="border-t border-border">
-                          <BlackoutListRow blackout={blackout} onEdit={openEditBlackoutModal} />
+                          <BlackoutListRow
+                            blackout={blackout}
+                            onEdit={openEditBlackoutModal}
+                            locale={locale}
+                          />
                         </div>
                       ))}
                     </ListView>
@@ -2400,9 +2554,11 @@ export default function CalendarManager({
           <section className="admin-panel p-6">
             <div className="grid gap-5">
               <div>
-                <h3 className="text-xl font-semibold text-slate-900">Business hours</h3>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {t(locale, "admin.calendar.businessHours")}
+                </h3>
                 <p className="mt-2 max-w-3xl text-sm leading-7 text-muted">
-                  These hours drive the calendar overlay and the booking engine. Edit each day in place without leaving the scheduling workspace.
+                  {t(locale, "admin.calendar.businessHoursDescription")}
                 </p>
               </div>
 
@@ -2412,7 +2568,11 @@ export default function CalendarManager({
                     key={entry.dayOfWeek}
                     className={index === 0 ? "" : "border-t border-border"}
                   >
-                    <BusinessHoursListRow entry={entry} onEdit={openBusinessHoursModal} />
+                    <BusinessHoursListRow
+                      entry={entry}
+                      onEdit={openBusinessHoursModal}
+                      locale={locale}
+                    />
                   </div>
                 ))}
               </ListView>
@@ -2422,13 +2582,21 @@ export default function CalendarManager({
       </section>
 
       <CreateEntityModal
-        eyebrow={blackoutModalSeed?.mode === "edit" ? "Edit blackout date" : "Create blackout date"}
-        title={
-          blackoutModalSeed?.mode === "edit" ? "Adjust blackout date" : "Add a blackout date"
+        eyebrow={
+          blackoutModalSeed?.mode === "edit"
+            ? t(locale, "admin.calendar.editBlackoutEyebrow")
+            : t(locale, "admin.calendar.createBlackoutEyebrow")
         }
-        description="Use business-wide blackout dates for closures and optional staff-specific blackout dates for exceptions, training, or time off."
+        title={
+          blackoutModalSeed?.mode === "edit"
+            ? t(locale, "admin.calendar.adjustBlackout")
+            : t(locale, "admin.calendar.addBlackoutTitle")
+        }
+        description={t(locale, "admin.calendar.blackoutModalDescription")}
         isOpen={blackoutModalSeed !== null}
         onClose={closeBlackoutModal}
+        closeLabel={t(locale, "common.close")}
+        closeAriaLabel={t(locale, "common.closeDialog")}
       >
         {blackoutModalSeed ? (
           <BlackoutModalForm
@@ -2436,24 +2604,32 @@ export default function CalendarManager({
             seed={blackoutModalSeed}
             staffMembers={staffMembers}
             onClose={closeBlackoutModal}
+            locale={locale}
           />
         ) : null}
       </CreateEntityModal>
 
       <CreateEntityModal
-        eyebrow="Edit business hours"
+        eyebrow={t(locale, "admin.calendar.editBusinessHours")}
         title={
-          businessHoursModalSeed ? `Update ${getDayLabel(businessHoursModalSeed.dayOfWeek)}` : "Update business hours"
+          businessHoursModalSeed
+            ? t(locale, "admin.calendar.updateDay", {
+                day: getLocalizedDayLabel(businessHoursModalSeed.dayOfWeek, locale),
+              })
+            : t(locale, "admin.calendar.updateBusinessHours")
         }
-        description="Configure one or more Business periods for this day. Staff availability still layers on top of the business hours you define here."
+        description={t(locale, "admin.calendar.businessHoursModalDescription")}
         isOpen={businessHoursModalSeed !== null}
         onClose={closeBusinessHoursModal}
+        closeLabel={t(locale, "common.close")}
+        closeAriaLabel={t(locale, "common.closeDialog")}
       >
         {businessHoursModalSeed ? (
           <BusinessHoursModalForm
             key={`business-hours-${businessHoursModalSeed.dayOfWeek}`}
             seed={businessHoursModalSeed}
             onClose={closeBusinessHoursModal}
+            locale={locale}
           />
         ) : null}
       </CreateEntityModal>

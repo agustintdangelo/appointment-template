@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
+import LanguageSelector from "@/app/components/language-selector";
 import { buildBrandAssetUrl, buildBrandingCssVariables } from "@/lib/branding";
+import { t } from "@/lib/i18n";
+import { getPublicLocale } from "@/lib/locale-server";
 import { getPublicBranding } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicBranding();
+  const locale = await getPublicLocale(branding?.defaultLocale);
   const businessName = branding?.name ?? "Appointment Template";
   const favicon = branding?.brandAssets.find((asset) => asset.kind === "FAVICON");
 
@@ -19,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description:
       branding?.description ??
-      "Reusable appointment-booking template for service businesses.",
+      t(locale, "public.metadataDescription"),
     icons: favicon
       ? {
           icon: [
@@ -42,12 +46,14 @@ export async function generateMetadata(): Promise<Metadata> {
 function BrandLockup({
   businessName,
   assetUrl,
+  altText,
   className,
   imageClassName,
   fallbackClassName,
 }: {
   businessName: string;
   assetUrl?: string | null;
+  altText: string;
   className?: string;
   imageClassName?: string;
   fallbackClassName?: string;
@@ -57,7 +63,7 @@ function BrandLockup({
       <div className={className}>
         <Image
           src={assetUrl}
-          alt={`${businessName} logo`}
+          alt={altText}
           width={220}
           height={72}
           className={imageClassName ?? "h-10 w-auto object-contain"}
@@ -78,9 +84,10 @@ export default async function PublicLayout({
   children: React.ReactNode;
 }>) {
   const branding = await getPublicBranding();
+  const locale = await getPublicLocale(branding?.defaultLocale);
   const businessName = branding?.name ?? "Appointment Template";
   const brandDescription =
-    branding?.description ?? "Book appointments online with a reusable scheduling starter.";
+    branding?.description ?? t(locale, "public.defaultBrandDescription");
   const logo = branding?.brandAssets.find((asset) => asset.kind === "LOGO");
   const alternateLogo = branding?.brandAssets.find((asset) => asset.kind === "LOGO_ALT");
   const logoUrl = buildBrandAssetUrl(logo);
@@ -88,6 +95,7 @@ export default async function PublicLayout({
 
   return (
     <div
+      lang={locale}
       className="public-brand-shell min-h-full"
       style={buildBrandingCssVariables(branding ?? undefined)}
     >
@@ -98,30 +106,32 @@ export default async function PublicLayout({
               <BrandLockup
                 businessName={businessName}
                 assetUrl={logoUrl}
+                altText={t(locale, "public.logoAlt", { businessName })}
                 className="shrink-0"
                 fallbackClassName="font-display text-2xl leading-none"
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold uppercase tracking-[0.28em] text-muted">
-                  Online appointments
+                  {t(locale, "common.onlineAppointments")}
                 </p>
                 <p className="truncate text-sm text-muted">{businessName}</p>
               </div>
             </Link>
 
-            <nav className="flex items-center gap-5 text-sm font-medium text-muted">
+            <nav className="flex flex-wrap items-center justify-end gap-4 text-sm font-medium text-muted">
               <Link href="/" className="transition hover:text-foreground">
-                Home
+                {t(locale, "common.home")}
               </Link>
               <Link href="/services" className="transition hover:text-foreground">
-                Services
+                {t(locale, "common.services")}
               </Link>
               <Link href="/book" className="transition hover:text-foreground">
-                Book
+                {t(locale, "common.book")}
               </Link>
               <Link href="/admin/appointments" className="transition hover:text-foreground">
-                Admin
+                {t(locale, "common.admin")}
               </Link>
+              <LanguageSelector locale={locale} />
             </nav>
           </div>
         </header>
@@ -131,14 +141,15 @@ export default async function PublicLayout({
         <footer className="border-t border-border/80 bg-surface/80">
           <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)] lg:px-8">
             <div className="grid gap-2 text-sm text-muted">
-              <p>Built as a generic appointment-booking starter for time-slot-based businesses.</p>
-              <p>Demo content is vertical-specific. Core booking behavior stays reusable.</p>
+              <p>{t(locale, "public.genericFooter")}</p>
+              <p>{t(locale, "public.demoFooter")}</p>
             </div>
 
             <div className="brand-accent-fill rounded-[1.75rem] px-6 py-5">
               <BrandLockup
                 businessName={businessName}
                 assetUrl={alternateLogoUrl}
+                altText={t(locale, "public.logoAlt", { businessName })}
                 className="mb-3"
                 imageClassName="h-9 w-auto object-contain"
                 fallbackClassName="brand-on-accent font-display text-2xl leading-none"

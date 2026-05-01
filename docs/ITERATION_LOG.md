@@ -673,6 +673,87 @@ Date/time: 2026-04-20 branding asset persistence and preview reliability
 ### Next recommended step
 - add an end-to-end browser test that uploads branding assets, saves, and verifies both admin preview continuity and public logo rendering
 
+## Iteration 20
+Date/time: 2026-04-30 localization foundation
+
+### What changed
+- added Spanish and English localization across the public booking experience and admin workspace
+- made Spanish the default runtime fallback when no locale is configured
+- added `Business.defaultLocale` plus an admin `/admin/settings` page for choosing the global default language
+- added a public language selector that stores the visitor override in `localStorage` and the `appointment_public_locale` cookie
+- centralized supported locale validation, labels, translation lookup, date-fns locale mapping, and Spanish fallback behavior in `lib/i18n.ts`
+- localized admin actions, validation messages, booking API responses, date labels, status labels, navigation, empty states, and form controls
+
+### Files/modules affected
+- `app/(public)/`
+- `app/components/language-selector.tsx`
+- `app/admin/`
+- `app/api/availability/route.ts`
+- `app/api/appointments/route.ts`
+- `lib/i18n.ts`
+- `lib/locale-server.ts`
+- `lib/format.ts`
+- `lib/admin.ts`
+- `lib/business-hours.ts`
+- `lib/booking.ts`
+- `lib/branding.ts`
+- `lib/branding-admin.ts`
+- `lib/queries.ts`
+- `prisma/schema.prisma`
+- `prisma/seed.mjs`
+- `README.md`
+- `docs/ADAPTATION_GUIDE.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ITERATION_LOG.md`
+- `docs/PRODUCT.md`
+
+### Schema / migration changes
+- added `Business.defaultLocale` with default `es`
+- added migration `20260430180000_add_default_locale`
+
+### Decisions made
+- kept localization dictionary-based instead of adding a new i18n dependency
+- used Spanish as the fallback for invalid locales and missing translation keys
+- stored the business-wide default language on the existing `Business` settings model
+- kept public visitor language choice browser-local so it does not mutate the global business setting
+
+### Open issues / risks
+- database content such as seeded service names and staff names remains business-authored content, not translated system UI
+- adding a third language requires a full dictionary pass before it should be exposed to users
+
+### Next recommended step
+- add smoke tests for Spanish and English public booking plus the admin settings save flow
+
+## Iteration 21
+Date/time: 2026-04-30 localization settings polish
+
+### What changed
+- replaced the admin default-language select arrow with an inset custom icon so it no longer appears pushed against the field edge
+- made the default-language selector controlled so the selected option stays on the newly saved language while the admin workspace refreshes
+- replaced the public language selector with a compact globe/code menu so it takes less visual priority in the public header
+- added a forced locale refresh curtain that covers the UI before refresh, holds through the text swap, then fades out without shifting page layout
+
+### Files/modules affected
+- `app/admin/settings/language-settings-form.tsx`
+- `app/components/language-selector.tsx`
+- `app/globals.css`
+- `lib/locale-transition.ts`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- kept the visual fix local to the existing admin select pattern instead of introducing a new form component
+- avoided the browser View Transitions API because its root snapshots made repeated language refreshes feel jumpy
+- kept the transition as an opaque fixed-curtain fade with a reduced-motion fallback so text reflow is hidden underneath
+
+### Open issues / risks
+- the transition deliberately stays subtle so language changes do not obscure the actual content update
+
+### Next recommended step
+- add a browser smoke test for switching `/admin/settings` between Spanish and English
+
 ## Iteration 19
 Date/time: 2026-04-30 branding asset URL cache-shape fix
 
@@ -720,3 +801,73 @@ Date/time: 2026-04-20 admin return path
 
 ### Next recommended step
 - add an end-to-end browser test that uploads branding assets, saves, and verifies both admin preview continuity and public logo rendering
+
+## Iteration 22
+Date/time: 2026-04-30 optional customer authentication foundation
+
+### What changed
+- added optional public Google and Apple sign-in through NextAuth
+- kept booking available for guests without account creation
+- added required contact collection for full name, email, and phone during booking
+- preserved in-progress booking state across OAuth redirects with browser session storage
+- associated authenticated bookings with server-derived customer records
+- added appointment contact fields, guest contact fields, booking type, optional customer ownership, and a hashed future management token
+- added a confirmation-delivery placeholder module for future email, SMS, WhatsApp, or other provider integration
+- updated Spanish and English labels for the new booking authentication and contact UI
+- documented OAuth setup, callback URLs, guest behavior, authenticated booking behavior, and current limitations
+
+### Files/modules affected
+- `package.json`
+- `package-lock.json`
+- `.env.example`
+- `app/(public)/book/`
+- `app/api/auth/[...nextauth]/route.ts`
+- `app/api/appointments/route.ts`
+- `app/admin/appointments/page.tsx`
+- `lib/contact.ts`
+- `lib/customer-auth.ts`
+- `lib/confirmation.ts`
+- `lib/booking.ts`
+- `lib/i18n.ts`
+- `lib/queries.ts`
+- `types/next-auth.d.ts`
+- `prisma/schema.prisma`
+- `prisma/seed.mjs`
+- `prisma/migrations/20260430193000_customer_auth_booking_foundation/migration.sql`
+- `README.md`
+- `docs/ADAPTATION_GUIDE.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ITERATION_LOG.md`
+- `docs/PRODUCT.md`
+
+### Schema / migration changes
+- added `CustomerAuthProvider` and `AppointmentBookingType` enums
+- added `Customer` with provider identity uniqueness on `authProvider` + `providerAccountId`
+- added `Appointment.customerId`, guest contact fields, contact destination fields, `bookingType`, and `managementTokenHash`
+- added indexes for customer lookup and appointment ownership
+- added migration `20260430193000_customer_auth_booking_foundation`
+
+### Decisions made
+- used NextAuth because the app already uses Next.js App Router and had no customer auth foundation
+- used JWT sessions and a small custom `Customer` upsert instead of adding the Prisma adapter tables, keeping customer auth separate from admin auth
+- registered Google and Apple providers only when their environment variables are present so guest booking still works in unconfigured environments
+- stored only the management token hash on appointments; future confirmation delivery can use the raw token at creation time when provider integration is added
+- kept cancellation, modification, rescheduling, and customer appointment history pages out of scope
+
+### Open issues / risks
+- OAuth credentials and provider setup must be completed outside the codebase before Google or Apple sign-in buttons become usable
+- Apple Sign-In requires a Service ID, return URL, key/team configuration, and a generated client-secret JWT
+- no confirmation messages are sent yet
+- no customer cancellation/modification/rescheduling flows are implemented yet
+- admin auth remains separate and still unimplemented
+
+### What remains pending
+- configure real Google OAuth credentials in the deployment environment
+- configure real Apple Sign-In credentials, Service ID, return URL, key/team data, and client-secret JWT
+- implement actual confirmation delivery through email, SMS, WhatsApp, or another provider
+- include the future secure management link in confirmation messages once delivery exists
+- build cancellation, modification, rescheduling, and any customer appointment-history experience in a separate slice
+- keep customer auth separate from future admin authentication and authorization work
+
+### Next recommended step
+- add confirmation delivery integration and a secure customer appointment-management link flow in a later slice

@@ -1,22 +1,50 @@
 import { format } from "date-fns";
 
-const moneyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
+import {
+  DEFAULT_LOCALE,
+  getDateFnsLocale,
+  normalizeLocale,
+  t,
+  type AppLocale,
+} from "@/lib/i18n";
 
-export function formatMoney(priceCents: number) {
-  return moneyFormatter.format(priceCents / 100);
+function getMoneyFormatter(locale: AppLocale) {
+  return new Intl.NumberFormat(locale === "es" ? "es-US" : "en-US", {
+    style: "currency",
+    currency: "USD",
+  });
 }
 
-export function formatServiceTiming(durationMinutes: number, bufferMinutes: number) {
+export function formatMoney(priceCents: number, localeInput: unknown = DEFAULT_LOCALE) {
+  const locale = normalizeLocale(localeInput);
+
+  return getMoneyFormatter(locale).format(priceCents / 100);
+}
+
+export function formatServiceTiming(
+  durationMinutes: number,
+  bufferMinutes: number,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
   if (bufferMinutes > 0) {
-    return `${durationMinutes} min service + ${bufferMinutes} min buffer`;
+    return t(localeInput, "format.serviceTimingWithBuffer", {
+      duration: durationMinutes,
+      buffer: bufferMinutes,
+    });
   }
 
-  return `${durationMinutes} min service`;
+  return t(localeInput, "format.serviceTiming", {
+    duration: durationMinutes,
+  });
 }
 
-export function formatAppointmentDateTime(value: Date) {
-  return format(value, "EEE, MMM d 'at' h:mm a");
+export function formatAppointmentDateTime(
+  value: Date,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
+  const locale = normalizeLocale(localeInput);
+
+  return format(value, t(locale, "format.appointmentDateTime"), {
+    locale: getDateFnsLocale(locale),
+  });
 }

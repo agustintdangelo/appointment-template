@@ -1,21 +1,20 @@
 import { format } from "date-fns";
 
-export const adminNavItems = [
-  { href: "/admin/calendar", label: "Calendar" },
-  { href: "/admin/appointments", label: "Appointments" },
-  { href: "/admin/services", label: "Services" },
-  { href: "/admin/staff", label: "Staff" },
-  { href: "/admin/branding", label: "Branding" },
-] as const;
+import {
+  DEFAULT_LOCALE,
+  getDateFnsLocale,
+  getWeekdayLabel,
+  getWeekdayOptions,
+  normalizeLocale,
+} from "@/lib/i18n";
 
-export const dayOptions = [
-  { value: 0, label: "Sunday" },
-  { value: 1, label: "Monday" },
-  { value: 2, label: "Tuesday" },
-  { value: 3, label: "Wednesday" },
-  { value: 4, label: "Thursday" },
-  { value: 5, label: "Friday" },
-  { value: 6, label: "Saturday" },
+export const adminNavItems = [
+  { href: "/admin/calendar", labelKey: "nav.calendar" },
+  { href: "/admin/appointments", labelKey: "nav.appointments" },
+  { href: "/admin/services", labelKey: "nav.services" },
+  { href: "/admin/staff", labelKey: "nav.staff" },
+  { href: "/admin/branding", labelKey: "nav.branding" },
+  { href: "/admin/settings", labelKey: "nav.settings" },
 ] as const;
 
 export function slugify(value: string) {
@@ -27,7 +26,18 @@ export function slugify(value: string) {
 }
 
 export function getDayLabel(dayOfWeek: number) {
-  return dayOptions.find((option) => option.value === dayOfWeek)?.label ?? "Unknown";
+  return getLocalizedDayLabel(dayOfWeek);
+}
+
+export function getLocalizedDayOptions(localeInput: unknown = DEFAULT_LOCALE) {
+  return getWeekdayOptions(localeInput);
+}
+
+export function getLocalizedDayLabel(
+  dayOfWeek: number,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
+  return getWeekdayLabel(dayOfWeek, localeInput);
 }
 
 export function getFormString(value: FormDataEntryValue | null) {
@@ -47,6 +57,25 @@ export function getLocalDateTimeInputValue(value: Date) {
   return format(value, "yyyy-MM-dd'T'HH:mm");
 }
 
-export function formatBlackoutRange(startAt: Date, endAt: Date) {
-  return `${format(startAt, "EEE, MMM d h:mm a")} to ${format(endAt, "h:mm a")}`;
+export function formatBlackoutRange(
+  startAt: Date,
+  endAt: Date,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
+  const locale = normalizeLocale(localeInput);
+  const dateLocale = getDateFnsLocale(locale);
+
+  if (locale === "es") {
+    return `${format(startAt, "EEE d MMM h:mm a", { locale: dateLocale })} a ${format(
+      endAt,
+      "h:mm a",
+      { locale: dateLocale },
+    )}`;
+  }
+
+  return `${format(startAt, "EEE, MMM d h:mm a", { locale: dateLocale })} to ${format(
+    endAt,
+    "h:mm a",
+    { locale: dateLocale },
+  )}`;
 }

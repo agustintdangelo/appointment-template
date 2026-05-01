@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { adminNavItems } from "@/lib/admin";
+import { DEFAULT_LOCALE, t, type AppLocale } from "@/lib/i18n";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParamsRecord = Record<string, SearchParamValue>;
@@ -111,7 +112,7 @@ export function AdminEmptyState({
   );
 }
 
-export function AdminNav() {
+export function AdminNav({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
   return (
     <nav className="flex flex-wrap gap-3">
       <Link
@@ -131,7 +132,7 @@ export function AdminNav() {
           <path d="M12.5 4.5 7 10l5.5 5.5" />
           <path d="M7.5 10h8" />
         </svg>
-        Back to home
+        {t(locale, "common.backToHome")}
       </Link>
       {adminNavItems.map((item) => (
         <Link
@@ -139,7 +140,7 @@ export function AdminNav() {
           href={item.href}
           className="admin-button-secondary text-sm font-medium"
         >
-          {item.label}
+          {t(locale, item.labelKey)}
         </Link>
       ))}
     </nav>

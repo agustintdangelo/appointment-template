@@ -19,6 +19,7 @@ import {
 import CreateEntityModal from "@/app/admin/components/create-entity-modal";
 import ListView from "@/app/admin/components/list-view";
 import useSessionCollectionViewMode from "@/app/admin/components/use-session-collection-view";
+import { t, type AppLocale } from "@/lib/i18n";
 
 type StaffRecord = {
   id: string;
@@ -37,6 +38,7 @@ type StaffRecord = {
 
 type StaffManagerProps = {
   staffMembers: StaffRecord[];
+  locale: AppLocale;
 };
 
 const VIEW_MODE_STORAGE_KEY = "appointment-admin-staff-view-mode";
@@ -122,7 +124,13 @@ function EditIconButton({
   );
 }
 
-function SaveStaffButton({ isEditing }: { isEditing: boolean }) {
+function SaveStaffButton({
+  isEditing,
+  locale,
+}: {
+  isEditing: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -131,12 +139,24 @@ function SaveStaffButton({ isEditing }: { isEditing: boolean }) {
       disabled={pending}
       className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save staff member" : "Create staff member"}
+      {pending
+        ? isEditing
+          ? t(locale, "common.saving")
+          : t(locale, "common.creating")
+        : isEditing
+          ? t(locale, "admin.staff.save")
+          : t(locale, "admin.staff.create")}
     </button>
   );
 }
 
-function DeleteStaffButton({ disabled }: { disabled: boolean }) {
+function DeleteStaffButton({
+  disabled,
+  locale,
+}: {
+  disabled: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -145,7 +165,7 @@ function DeleteStaffButton({ disabled }: { disabled: boolean }) {
       disabled={pending || disabled}
       className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "Deleting..." : "Delete staff member"}
+      {pending ? t(locale, "common.deleting") : t(locale, "admin.staff.delete")}
     </button>
   );
 }
@@ -153,9 +173,11 @@ function DeleteStaffButton({ disabled }: { disabled: boolean }) {
 function StaffModalForm({
   staffMember,
   onClose,
+  locale,
 }: {
   staffMember: StaffRecord | null;
   onClose: () => void;
+  locale: AppLocale;
 }) {
   const router = useRouter();
   const [saveState, saveAction] = useActionState(
@@ -179,6 +201,7 @@ function StaffModalForm({
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
         <input type="hidden" name="staffMemberId" defaultValue={staffMember?.id ?? ""} />
+        <input type="hidden" name="locale" value={locale} />
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner">
@@ -187,7 +210,7 @@ function StaffModalForm({
         ) : null}
 
         <label className="grid gap-2 text-sm font-medium">
-          Name
+          {t(locale, "admin.staff.name")}
           <input
             name="name"
             required
@@ -200,7 +223,7 @@ function StaffModalForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
-            Slug
+            {t(locale, "admin.staff.slug")}
             <input
             name="slug"
             defaultValue={staffMember?.slug ?? ""}
@@ -210,7 +233,7 @@ function StaffModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Title
+            {t(locale, "admin.staff.titleField")}
             <input
             name="title"
             defaultValue={staffMember?.title ?? ""}
@@ -221,7 +244,7 @@ function StaffModalForm({
         </div>
 
         <label className="grid gap-2 text-sm font-medium">
-          Bio
+          {t(locale, "admin.staff.bio")}
           <textarea
             name="bio"
             rows={5}
@@ -233,7 +256,7 @@ function StaffModalForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
-            Sort order
+            {t(locale, "admin.staff.sortOrder")}
             <input
               name="sortOrder"
               type="number"
@@ -253,18 +276,18 @@ function StaffModalForm({
               defaultChecked={staffMember ? staffMember.isActive : true}
               className="admin-checkbox"
             />
-            Active and assignable
+            {t(locale, "admin.staff.activeAssignable")}
           </label>
         </div>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          <SaveStaffButton isEditing={!!staffMember} />
+          <SaveStaffButton isEditing={!!staffMember} locale={locale} />
           <button
             type="button"
             onClick={onClose}
             className="admin-button-secondary"
           >
-            Cancel
+            {t(locale, "common.cancel")}
           </button>
         </div>
       </form>
@@ -274,16 +297,17 @@ function StaffModalForm({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
-                Danger zone
+                {t(locale, "admin.staff.danger")}
               </p>
               <p className="mt-2 text-sm leading-7 text-muted">
-                Delete this staff member only if they have no linked appointments. Otherwise deactivate them.
+                {t(locale, "admin.staff.dangerDescription")}
               </p>
             </div>
 
             <form action={deleteAction}>
               <input type="hidden" name="staffMemberId" defaultValue={staffMember.id} />
-              <DeleteStaffButton disabled={!canDelete} />
+              <input type="hidden" name="locale" value={locale} />
+              <DeleteStaffButton disabled={!canDelete} locale={locale} />
             </form>
           </div>
 
@@ -293,7 +317,7 @@ function StaffModalForm({
 
           {!canDelete ? (
             <p className="mt-3 text-sm text-muted">
-              This staff member already has appointments. Deactivate them instead of deleting them.
+              {t(locale, "admin.staff.cannotDelete")}
             </p>
           ) : null}
         </div>
@@ -302,7 +326,7 @@ function StaffModalForm({
   );
 }
 
-function AddStaffCard({ onCreate }: { onCreate: () => void }) {
+function AddStaffCard({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -326,9 +350,11 @@ function AddStaffCard({ onCreate }: { onCreate: () => void }) {
       </div>
 
       <div>
-        <p className="text-xl font-semibold text-slate-900">Add staff</p>
+        <p className="text-xl font-semibold text-slate-900">
+          {t(locale, "admin.staff.add")}
+        </p>
         <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
-          Create a new staff member directly from the roster instead of using a separate header button.
+          {t(locale, "admin.staff.addDescription")}
         </p>
       </div>
     </button>
@@ -338,45 +364,54 @@ function AddStaffCard({ onCreate }: { onCreate: () => void }) {
 function StaffCard({
   staffMember,
   onEdit,
+  locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="admin-card p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xl font-semibold text-slate-900">{staffMember.name}</p>
-          <p className="mt-2 text-sm text-muted">{staffMember.title ?? "No title set"}</p>
+          <p className="mt-2 text-sm text-muted">
+            {staffMember.title ?? t(locale, "common.noTitle")}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full border border-border bg-surface px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {staffMember.isActive ? "Active" : "Inactive"}
+            {staffMember.isActive ? t(locale, "common.active") : t(locale, "common.inactive")}
           </span>
-          <EditIconButton label={`Edit ${staffMember.name}`} onClick={() => onEdit(staffMember)} />
+          <EditIconButton
+            label={t(locale, "admin.staff.editLabel", { name: staffMember.name })}
+            onClick={() => onEdit(staffMember)}
+          />
         </div>
       </div>
 
       <p className="mt-4 min-h-[4.5rem] line-clamp-3 text-sm leading-7 text-muted">
-        {staffMember.bio ?? "No bio yet."}
+        {staffMember.bio ?? t(locale, "common.noBio")}
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {staffMember._count?.appointments ?? 0} appointments
+          {t(locale, "common.appointments")}: {staffMember._count?.appointments ?? 0}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {staffMember._count?.blackoutDates ?? 0} blackout dates
+          {t(locale, "admin.staff.blackoutDatesCount", {
+            count: staffMember._count?.blackoutDates ?? 0,
+          })}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          Order {staffMember.sortOrder}
+          {t(locale, "admin.staff.order", { order: staffMember.sortOrder })}
         </span>
       </div>
     </article>
   );
 }
 
-function AddStaffListRow({ onCreate }: { onCreate: () => void }) {
+function AddStaffListRow({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -400,8 +435,10 @@ function AddStaffListRow({ onCreate }: { onCreate: () => void }) {
           </svg>
         </span>
         <div>
-          <p className="text-lg font-semibold text-slate-900">Add staff</p>
-          <p className="mt-1 text-sm text-muted">Create a new roster entry</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {t(locale, "admin.staff.add")}
+          </p>
+          <p className="mt-1 text-sm text-muted">{t(locale, "admin.staff.addListDescription")}</p>
         </div>
       </div>
     </button>
@@ -411,9 +448,11 @@ function AddStaffListRow({ onCreate }: { onCreate: () => void }) {
 function StaffListRow({
   staffMember,
   onEdit,
+  locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
@@ -421,7 +460,7 @@ function StaffListRow({
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-lg font-semibold text-slate-900">{staffMember.name}</p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {staffMember.isActive ? "Active" : "Inactive"}
+            {staffMember.isActive ? t(locale, "common.active") : t(locale, "common.inactive")}
           </span>
         </div>
         <p className="mt-2 line-clamp-2 text-sm text-muted">{staffMember.title ?? staffMember.slug}</p>
@@ -429,15 +468,20 @@ function StaffListRow({
 
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {staffMember._count?.appointments ?? 0} appointments
+          {t(locale, "common.appointments")}: {staffMember._count?.appointments ?? 0}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {staffMember._count?.blackoutDates ?? 0} blackout dates
+          {t(locale, "admin.staff.blackoutDatesCount", {
+            count: staffMember._count?.blackoutDates ?? 0,
+          })}
         </span>
       </div>
 
       <div className="flex justify-start md:justify-end">
-        <EditIconButton label={`Edit ${staffMember.name}`} onClick={() => onEdit(staffMember)} />
+        <EditIconButton
+          label={t(locale, "admin.staff.editLabel", { name: staffMember.name })}
+          onClick={() => onEdit(staffMember)}
+        />
       </div>
     </article>
   );
@@ -469,7 +513,7 @@ function EmptyResults({
   );
 }
 
-export default function StaffManager({ staffMembers }: StaffManagerProps) {
+export default function StaffManager({ staffMembers, locale }: StaffManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminCollectionStatusFilter>("all");
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
@@ -504,8 +548,8 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
   return (
     <>
       <AdminListHeader
-        searchLabel="Search staff"
-        searchPlaceholder="Search by name, slug, title, or bio"
+        searchLabel={t(locale, "admin.staff.searchLabel")}
+        searchPlaceholder={t(locale, "admin.staff.searchPlaceholder")}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
@@ -514,10 +558,14 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
         onSortChange={setSortValue}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        locale={locale}
         summary={
           <div className="flex flex-wrap items-center gap-3">
             <span>
-              Showing {visibleStaffMembers.length} of {staffMembers.length} staff members.
+              {t(locale, "admin.staff.showing", {
+                visible: visibleStaffMembers.length,
+                total: staffMembers.length,
+              })}
             </span>
             {hasFilters ? (
               <button
@@ -525,7 +573,7 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
                 onClick={resetFilters}
                 className="admin-link"
               >
-                Clear filters
+                {t(locale, "common.clearFilters")}
               </button>
             ) : null}
           </div>
@@ -534,9 +582,9 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
 
       {visibleStaffMembers.length === 0 && hasFilters ? (
         <EmptyResults
-          title="No staff members match these filters."
-          description="Try a different search or reset the filters to bring the full roster back into view."
-          actionLabel="Reset filters"
+          title={t(locale, "admin.staff.noMatchesTitle")}
+          description={t(locale, "admin.staff.noMatchesDescription")}
+          actionLabel={t(locale, "common.resetFilters")}
           onAction={resetFilters}
         />
       ) : (
@@ -545,24 +593,34 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
           transitionKey={`${viewMode}:${sortValue}`}
           cards={
             <CardGrid>
-              <AddStaffCard key="create-staff" onCreate={() => setIsCreateModalOpen(true)} />
+              <AddStaffCard
+                key="create-staff"
+                onCreate={() => setIsCreateModalOpen(true)}
+                locale={locale}
+              />
               {visibleStaffMembers.map((staffMember) => (
                 <StaffCard
                   key={staffMember.id}
                   staffMember={staffMember}
                   onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                  locale={locale}
                 />
               ))}
             </CardGrid>
           }
           list={
             <ListView>
-              <AddStaffListRow key="create-staff-row" onCreate={() => setIsCreateModalOpen(true)} />
+              <AddStaffListRow
+                key="create-staff-row"
+                onCreate={() => setIsCreateModalOpen(true)}
+                locale={locale}
+              />
               {visibleStaffMembers.map((staffMember) => (
                 <div key={staffMember.id} className="border-t border-border">
                   <StaffListRow
                     staffMember={staffMember}
                     onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                    locale={locale}
                   />
                 </div>
               ))}
@@ -572,17 +630,27 @@ export default function StaffManager({ staffMembers }: StaffManagerProps) {
       )}
 
       <CreateEntityModal
-        eyebrow={modalStaffMember ? "Edit staff member" : "Create staff member"}
-        title={modalStaffMember ? modalStaffMember.name : "Add a team member"}
+        eyebrow={
+          modalStaffMember
+            ? t(locale, "admin.staff.editEyebrow")
+            : t(locale, "admin.staff.createEyebrow")
+        }
+        title={modalStaffMember ? modalStaffMember.name : t(locale, "admin.staff.addTitle")}
         description={
           modalStaffMember
-            ? "Update a staff profile in place, then close the modal and continue scanning the roster."
-            : "Create a new staff record in a focused modal without turning the page into a long stack of forms."
+            ? t(locale, "admin.staff.editDescription")
+            : t(locale, "admin.staff.createDescription")
         }
         isOpen={isModalOpen}
         onClose={closeModal}
+        closeLabel={t(locale, "common.close")}
+        closeAriaLabel={t(locale, "common.closeDialog")}
       >
-        <StaffModalForm staffMember={modalStaffMember} onClose={closeModal} />
+        <StaffModalForm
+          staffMember={modalStaffMember}
+          onClose={closeModal}
+          locale={locale}
+        />
       </CreateEntityModal>
     </>
   );

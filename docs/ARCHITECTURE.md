@@ -13,6 +13,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - StaffAvailability
 - BlackoutDate
 - Appointment
+- Customer
 - AdminUser
 
 ## Architectural principles
@@ -27,6 +28,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - SQLite for local development
 - Zod for request validation
 - date-fns for booking time calculations
+- NextAuth for optional public Google / Apple OAuth sign-in
 
 ## Current structure
 - `app/`
@@ -38,19 +40,31 @@ Provide a generic appointment system that can be adapted to multiple service-bus
   - `/admin/calendar` unified scheduling workspace with calendar views, blackout management, and business-hours configuration
   - `/admin/appointments` basic admin list
   - `/admin/branding` branding management page
+  - `/admin/settings` workspace settings, including the default language selector
   - `/admin/services` service CRUD
   - `/admin/staff` staff CRUD
   - `/admin/actions.ts` admin server actions
   - `/admin/layout.tsx` shared admin shell
   - `/api/availability` slot generation endpoint
   - `/api/appointments` appointment creation endpoint
+  - `/api/auth/[...nextauth]` optional public customer OAuth endpoint
   - `/api/brand-assets/[assetId]` database-backed branding asset delivery
 - `lib/booking.ts`
-  - slot generation and confirmation-code logic
+  - slot generation, confirmation-code logic, and secure management-token generation
+- `lib/contact.ts`
+  - reusable contact normalization and generic phone validation
+- `lib/customer-auth.ts`
+  - NextAuth provider configuration, customer upsert, and server-side session helper for public customers
+- `lib/confirmation.ts`
+  - internal placeholder for future confirmation delivery payload handling
 - `lib/branding.ts`
   - branding defaults, font catalog, color derivation, contrast warnings, upload validation, and asset URLs
 - `lib/queries.ts`
   - read models for public and admin pages, including cached public branding reads
+- `lib/i18n.ts`
+  - supported locales, translation dictionaries, locale validation, labels, date-fns locale mapping, and Spanish fallback behavior
+- `lib/locale-server.ts`
+  - server helpers for resolving the active public locale from cookie + business default and the admin locale from business settings
 - `lib/validation.ts`
   - Zod request validation
 - `lib/admin.ts`
@@ -58,7 +72,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - `lib/prisma.ts`
   - Prisma client using the Better SQLite adapter
 - `prisma/schema.prisma`
-  - reusable appointment domain schema plus branding settings and brand assets
+  - reusable appointment domain schema plus customer auth, booking contact, branding settings, and brand assets
 - `prisma/seed.mjs`
   - demo business, branding defaults, services, staff, schedules, blackouts, and appointments
 - `prisma.config.ts`
@@ -84,6 +98,16 @@ A slot is available only if:
   - staff availability continues to support multiple rows per day
 - slot generation uses 15-minute increments
 - appointment creation rechecks availability on the server before insert
+- public customer authentication is optional
+  - Google and Apple OAuth use NextAuth with JWT sessions
+  - customer sessions are separate from the admin workspace
+  - OAuth provider tokens are not stored in the app database
+  - customer records are upserted by provider + provider account id to avoid duplicate identities for repeat sign-ins
+- guest appointment creation remains available without any customer account
+- appointment creation derives authenticated ownership from the server-side session, never from client-submitted customer ids
+- appointment contact fields are stored separately from optional customer ownership so authenticated customers can edit the contact destination for a specific booking
+- new bookings generate a high-entropy management token and store only its SHA-256 hash on the appointment as a foundation for future secure cancellation/modification links
+- `lib/confirmation.ts` is a provider-free integration point for future email, SMS, WhatsApp, or other confirmation channels
 - admin CRUD uses server actions with redirect-and-revalidate flow
 - services and staff members with linked appointments cannot be deleted
   - deactivation is the safe operational path
@@ -91,6 +115,12 @@ A slot is available only if:
 - branding is business-owned configuration
   - fonts and colors live on `Business`
   - uploaded logos and favicon live in `BrandAsset`
+- localization is business-owned configuration
+  - `Business.defaultLocale` stores the configured default language
+  - Spanish (`es`) is the database and runtime fallback
+  - English (`en`) is the second supported language in this version
+  - admin pages resolve language from `Business.defaultLocale`
+  - public pages resolve language from the visitor cookie first, then `Business.defaultLocale`
 - public theming is token-driven
   - public layout sets CSS variables from branding settings
   - existing semantic Tailwind tokens (`background`, `surface`, `accent`, etc.) are derived from those variables
@@ -142,6 +172,55 @@ A slot is available only if:
 - assets are streamed back through `/api/brand-assets/[assetId]`
 - asset URLs include a version query derived from `updatedAt` so replacements bust browser cache cleanly
 - the public branding read model uses a tagged cache so layout and metadata can share one snapshot per render, and branding saves explicitly revalidate that tag
+
+## Localization architecture
+
+- supported locales are centralized in `lib/i18n.ts`
+- translation lookup uses `t(locale, key, replacements)` and falls back to Spanish when a key or locale is missing
+- language names are centralized as natural labels:
+  - `es`: Español
+  - `en`: English
+- date formatting uses the matching date-fns locale where relevant
+- the admin default selector lives at `/admin/settings` and saves through `updateDefaultLocaleAction`
+- only supported locales pass validation before being saved to `Business.defaultLocale`
+- the public language selector stores the visitor override in `localStorage` and in the `appointment_public_locale` cookie so server-rendered public pages can resolve the same language
+
+## Customer authentication architecture
+
+- OAuth is implemented with `next-auth` because the project already uses Next.js App Router and does not have an existing customer auth layer.
+- The enabled providers are Google and Apple. Each provider is only registered when its client id and client secret environment variables are present.
+- Required runtime variables:
+  - `NEXTAUTH_URL`
+  - `NEXTAUTH_SECRET`
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `APPLE_CLIENT_ID`
+  - `APPLE_CLIENT_SECRET`
+- OAuth callbacks:
+  - Google: `/api/auth/callback/google`
+  - Apple: `/api/auth/callback/apple`
+- Apple requires external Apple Developer setup: Service ID, return URL, key/team configuration, and a signed client-secret JWT.
+- The public booking form stores in-progress selections and contact fields in `sessionStorage` before OAuth redirects, then restores them when the customer returns to `/book`.
+- Provider profile name/email are used only to prefill empty contact fields. The customer can still edit contact name, email, and phone before confirming.
+- Admin authentication remains separate. This slice does not add admin login or authorize admin routes.
+
+## Appointment ownership and contact model
+
+- `Customer` stores the stable internal id plus optional name, email, image, `authProvider`, and `providerAccountId`.
+- `Appointment.customerId` links authenticated bookings to a `Customer`; guest bookings leave it null.
+- `Appointment.guestFullName`, `guestEmail`, and `guestPhone` preserve guest identity data when no account exists.
+- `Appointment.contactEmail` and `contactPhone` are the destination fields future confirmation delivery should use.
+- Existing `customerName`, `customerEmail`, and `customerPhone` are retained for compatibility with current admin and confirmation views.
+- `Appointment.bookingType` records whether the booking was created as `GUEST`, `GOOGLE`, or `APPLE`.
+- `Appointment.managementTokenHash` stores a hashed future management token. The raw token is only available in memory at booking time for the future confirmation sender.
+
+## Adding another language
+
+- add the locale code to `supportedLocales`
+- add the display label and date-fns locale mapping
+- add a complete dictionary beside `es` and `en`
+- keep Spanish keys complete so fallback behavior stays reliable
+- seed or migrate any new defaults only if the new language should replace Spanish as the product default
 
 ## Extension points
 In later versions this can extend into:

@@ -1,7 +1,7 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import type { BrandingActionState } from "@/app/admin/branding/branding-types";
@@ -18,9 +18,19 @@ import {
   getOptionalFormString,
   slugify,
 } from "@/lib/admin";
+import {
+  DEFAULT_LOCALE,
+  isSupportedLocale,
+  normalizeLocale,
+  t,
+} from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
-async function getAdminBusinessId() {
+function getActionLocale(formData: FormData) {
+  return normalizeLocale(getFormString(formData.get("locale")) || DEFAULT_LOCALE);
+}
+
+async function getAdminBusinessId(locale: unknown = DEFAULT_LOCALE) {
   const business = await prisma.business.findFirst({
     select: {
       id: true,
@@ -28,7 +38,7 @@ async function getAdminBusinessId() {
   });
 
   if (!business) {
-    throw new Error("Seed the database before managing records.");
+    throw new Error(t(locale, "actions.seedDatabase"));
   }
 
   return business.id;
@@ -117,101 +127,121 @@ function buildBusinessPeriodFieldErrors(
   return fieldErrors;
 }
 
-const serviceSchema = z.object({
-  serviceId: z.string().optional(),
-  name: z.string().trim().min(2, "Service name is required."),
-  slug: z.string().trim().min(1).optional(),
-  description: z.string().trim().max(400).optional(),
-  durationMinutes: z.coerce
-    .number()
-    .int("Duration must be a whole number.")
-    .min(5, "Duration must be at least 5 minutes."),
-  bufferMinutes: z.coerce
-    .number()
-    .int("Buffer must be a whole number.")
-    .min(0, "Buffer cannot be negative."),
-  price: z.coerce.number().min(0, "Price cannot be negative."),
-  sortOrder: z.coerce.number().int().min(0, "Sort order cannot be negative."),
-  isActive: z.boolean(),
-});
+function buildServiceSchema(locale: unknown) {
+  return z.object({
+    serviceId: z.string().optional(),
+    name: z.string().trim().min(2, t(locale, "actions.serviceNameRequired")),
+    slug: z.string().trim().min(1).optional(),
+    description: z.string().trim().max(400).optional(),
+    durationMinutes: z.coerce
+      .number()
+      .int(t(locale, "actions.durationWhole"))
+      .min(5, t(locale, "actions.durationMin")),
+    bufferMinutes: z.coerce
+      .number()
+      .int(t(locale, "actions.bufferWhole"))
+      .min(0, t(locale, "actions.bufferNegative")),
+    price: z.coerce.number().min(0, t(locale, "actions.priceNegative")),
+    sortOrder: z.coerce.number().int().min(0, t(locale, "actions.sortNegative")),
+    isActive: z.boolean(),
+  });
+}
 
-const staffSchema = z.object({
-  staffMemberId: z.string().optional(),
-  name: z.string().trim().min(2, "Staff member name is required."),
-  slug: z.string().trim().min(1).optional(),
-  title: z.string().trim().max(80).optional(),
-  bio: z.string().trim().max(600).optional(),
-  sortOrder: z.coerce.number().int().min(0, "Sort order cannot be negative."),
-  isActive: z.boolean(),
-});
+function buildStaffSchema(locale: unknown) {
+  return z.object({
+    staffMemberId: z.string().optional(),
+    name: z.string().trim().min(2, t(locale, "actions.staffNameRequired")),
+    slug: z.string().trim().min(1).optional(),
+    title: z.string().trim().max(80).optional(),
+    bio: z.string().trim().max(600).optional(),
+    sortOrder: z.coerce.number().int().min(0, t(locale, "actions.sortNegative")),
+    isActive: z.boolean(),
+  });
+}
 
 const businessPeriodSchema = z.object({
   openTime: z.string(),
   closeTime: z.string(),
 });
 
-const businessHoursSchema = z.object({
-  dayOfWeek: z.coerce.number().int().min(0).max(6),
-  isClosed: z.boolean(),
-  periods: z
-    .array(businessPeriodSchema)
-    .max(
-      MAX_BUSINESS_PERIODS_PER_DAY,
-      `You can add up to ${MAX_BUSINESS_PERIODS_PER_DAY} Business periods per day.`,
-    ),
-  copyToDayOfWeek: z.array(z.coerce.number().int().min(0).max(6)).default([]),
-});
-
-const blackoutSchema = z
-  .object({
-    blackoutDateId: z.string().optional(),
-    staffMemberId: z.string().optional(),
-    startsAt: z.string().min(1, "Start time is required."),
-    endsAt: z.string().min(1, "End time is required."),
-    reason: z.string().trim().max(200).optional(),
-  })
-  .transform((value) => ({
-    ...value,
-    startsAtDate: new Date(value.startsAt),
-    endsAtDate: new Date(value.endsAt),
-  }))
-  .superRefine((value, context) => {
-    if (Number.isNaN(value.startsAtDate.getTime())) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Start time is invalid.",
-        path: ["startsAt"],
-      });
-    }
-
-    if (Number.isNaN(value.endsAtDate.getTime())) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End time is invalid.",
-        path: ["endsAt"],
-      });
-    }
-
-    if (
-      !Number.isNaN(value.startsAtDate.getTime()) &&
-      !Number.isNaN(value.endsAtDate.getTime()) &&
-      value.endsAtDate <= value.startsAtDate
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End time must be after the start time.",
-        path: ["endsAt"],
-      });
-    }
+function buildBusinessHoursSchema(locale: unknown) {
+  return z.object({
+    dayOfWeek: z.coerce.number().int().min(0).max(6),
+    isClosed: z.boolean(),
+    periods: z
+      .array(businessPeriodSchema)
+      .max(
+        MAX_BUSINESS_PERIODS_PER_DAY,
+        t(locale, "actions.businessPeriodsLimit", {
+          count: MAX_BUSINESS_PERIODS_PER_DAY,
+        }),
+      ),
+    copyToDayOfWeek: z.array(z.coerce.number().int().min(0).max(6)).default([]),
   });
+}
+
+function buildBlackoutSchema(locale: unknown) {
+  return z
+    .object({
+      blackoutDateId: z.string().optional(),
+      staffMemberId: z.string().optional(),
+      startsAt: z.string().min(1, t(locale, "actions.startRequired")),
+      endsAt: z.string().min(1, t(locale, "actions.endRequired")),
+      reason: z.string().trim().max(200).optional(),
+    })
+    .transform((value) => ({
+      ...value,
+      startsAtDate: new Date(value.startsAt),
+      endsAtDate: new Date(value.endsAt),
+    }))
+    .superRefine((value, context) => {
+      if (Number.isNaN(value.startsAtDate.getTime())) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t(locale, "actions.startInvalid"),
+          path: ["startsAt"],
+        });
+      }
+
+      if (Number.isNaN(value.endsAtDate.getTime())) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t(locale, "actions.endInvalid"),
+          path: ["endsAt"],
+        });
+      }
+
+      if (
+        !Number.isNaN(value.startsAtDate.getTime()) &&
+        !Number.isNaN(value.endsAtDate.getTime()) &&
+        value.endsAtDate <= value.startsAtDate
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t(locale, "actions.endAfterStart"),
+          path: ["endsAt"],
+        });
+      }
+    });
+}
+
+function buildLocalizationSchema(locale: unknown) {
+  return z.object({
+    defaultLocale: z.string().refine((value) => isSupportedLocale(value), {
+      message: t(locale, "admin.settings.languageInvalid"),
+    }),
+  });
+}
 
 export async function upsertServiceAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
-    const businessId = await getAdminBusinessId();
-    const parsedInput = serviceSchema.parse({
+    const businessId = await getAdminBusinessId(locale);
+    const parsedInput = buildServiceSchema(locale).parse({
       serviceId: getOptionalFormString(formData.get("serviceId")),
       name: getFormString(formData.get("name")),
       slug: getOptionalFormString(formData.get("slug")),
@@ -236,8 +266,8 @@ export async function upsertServiceAction(
     });
 
     if (duplicateService) {
-      return buildEntityActionState("error", "Service slug must be unique within the business.", {
-        slug: "Service slug must be unique within the business.",
+      return buildEntityActionState("error", t(locale, "actions.serviceSlugUnique"), {
+        slug: t(locale, "actions.serviceSlugUnique"),
       });
     }
 
@@ -273,9 +303,9 @@ export async function upsertServiceAction(
       "/admin/services",
       "/admin/appointments",
     ]);
-    return buildEntityActionState("success", "Service saved.");
+    return buildEntityActionState("success", t(locale, "actions.serviceSaved"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to save the service.");
+    return handleEntityMutationError(error, t(locale, "actions.serviceSaveError"));
   }
 }
 
@@ -283,11 +313,13 @@ export async function deleteServiceAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
     const serviceId = getFormString(formData.get("serviceId"));
 
     if (!serviceId) {
-      return buildEntityActionState("error", "Service id is missing.");
+      return buildEntityActionState("error", t(locale, "actions.serviceIdMissing"));
     }
 
     const linkedAppointments = await prisma.appointment.count({
@@ -299,7 +331,7 @@ export async function deleteServiceAction(
     if (linkedAppointments > 0) {
       return buildEntityActionState(
         "error",
-        "Services with appointments cannot be deleted. Deactivate them instead.",
+        t(locale, "actions.serviceDeleteLinked"),
       );
     }
 
@@ -316,9 +348,9 @@ export async function deleteServiceAction(
       "/admin/services",
       "/admin/appointments",
     ]);
-    return buildEntityActionState("success", "Service deleted.");
+    return buildEntityActionState("success", t(locale, "actions.serviceDeleted"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to delete the service.");
+    return handleEntityMutationError(error, t(locale, "actions.serviceDeleteError"));
   }
 }
 
@@ -326,9 +358,11 @@ export async function upsertStaffMemberAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
-    const businessId = await getAdminBusinessId();
-    const parsedInput = staffSchema.parse({
+    const businessId = await getAdminBusinessId(locale);
+    const parsedInput = buildStaffSchema(locale).parse({
       staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
       name: getFormString(formData.get("name")),
       slug: getOptionalFormString(formData.get("slug")),
@@ -351,8 +385,8 @@ export async function upsertStaffMemberAction(
     });
 
     if (duplicateStaffMember) {
-      return buildEntityActionState("error", "Staff slug must be unique within the business.", {
-        slug: "Staff slug must be unique within the business.",
+      return buildEntityActionState("error", t(locale, "actions.staffSlugUnique"), {
+        slug: t(locale, "actions.staffSlugUnique"),
       });
     }
 
@@ -387,9 +421,9 @@ export async function upsertStaffMemberAction(
       "/admin/appointments",
       "/admin/calendar",
     ]);
-    return buildEntityActionState("success", "Staff member saved.");
+    return buildEntityActionState("success", t(locale, "actions.staffSaved"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to save the staff member.");
+    return handleEntityMutationError(error, t(locale, "actions.staffSaveError"));
   }
 }
 
@@ -397,11 +431,13 @@ export async function deleteStaffMemberAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
     const staffMemberId = getFormString(formData.get("staffMemberId"));
 
     if (!staffMemberId) {
-      return buildEntityActionState("error", "Staff member id is missing.");
+      return buildEntityActionState("error", t(locale, "actions.staffIdMissing"));
     }
 
     const linkedAppointments = await prisma.appointment.count({
@@ -413,7 +449,7 @@ export async function deleteStaffMemberAction(
     if (linkedAppointments > 0) {
       return buildEntityActionState(
         "error",
-        "Staff with appointments cannot be deleted. Deactivate them instead.",
+        t(locale, "actions.staffDeleteLinked"),
       );
     }
 
@@ -431,9 +467,9 @@ export async function deleteStaffMemberAction(
       "/admin/appointments",
       "/admin/calendar",
     ]);
-    return buildEntityActionState("success", "Staff member deleted.");
+    return buildEntityActionState("success", t(locale, "actions.staffDeleted"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to delete the staff member.");
+    return handleEntityMutationError(error, t(locale, "actions.staffDeleteError"));
   }
 }
 
@@ -441,15 +477,17 @@ export async function upsertBusinessHoursAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
-    const businessId = await getAdminBusinessId();
+    const businessId = await getAdminBusinessId(locale);
     const openTimes = formData.getAll("openTime").map((value) => getFormString(value));
     const closeTimes = formData.getAll("closeTime").map((value) => getFormString(value));
     const periods = openTimes.map((openTime, index) => ({
       openTime,
       closeTime: closeTimes[index] ?? "",
     }));
-    const parsedInput = businessHoursSchema.parse({
+    const parsedInput = buildBusinessHoursSchema(locale).parse({
       dayOfWeek: getFormString(formData.get("dayOfWeek")),
       isClosed: getFormCheckbox(formData, "isClosed"),
       periods,
@@ -461,6 +499,7 @@ export async function upsertBusinessHoursAction(
     const validatedPeriods = validateBusinessPeriods({
       periods: parsedInput.periods,
       isClosed: parsedInput.isClosed,
+      locale,
     });
 
     if (validatedPeriods.hasErrors) {
@@ -468,7 +507,9 @@ export async function upsertBusinessHoursAction(
 
       return buildEntityActionState(
         "error",
-        validatedPeriods.formError ?? Object.values(fieldErrors)[0] ?? "Unable to update business hours.",
+        validatedPeriods.formError ??
+          Object.values(fieldErrors)[0] ??
+          t(locale, "actions.businessHoursSaveError"),
         fieldErrors,
       );
     }
@@ -478,9 +519,9 @@ export async function upsertBusinessHoursAction(
     );
 
     if (copyToDayOfWeek.length > 0 && (parsedInput.isClosed || validatedPeriods.sortedPeriods.length === 0)) {
-      return buildEntityActionState("error", "Copying Business periods requires at least 1 active Business period.", {
+      return buildEntityActionState("error", t(locale, "actions.copyRequiresPeriod"), {
         copyToDayOfWeek:
-          "Reopen this day and keep at least 1 valid Business period before copying to other days.",
+          t(locale, "actions.copyRequiresPeriodField"),
       });
     }
 
@@ -537,11 +578,15 @@ export async function upsertBusinessHoursAction(
     return buildEntityActionState(
       "success",
       copyToDayOfWeek.length > 0
-        ? `Business hours updated and Business periods copied to ${copyToDayOfWeek.length} day${copyToDayOfWeek.length === 1 ? "" : "s"}.`
-        : "Business hours updated.",
+        ? copyToDayOfWeek.length === 1
+          ? t(locale, "actions.businessHoursCopiedOne")
+          : t(locale, "actions.businessHoursCopied", {
+              count: copyToDayOfWeek.length,
+            })
+        : t(locale, "actions.businessHoursUpdated"),
     );
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to update business hours.");
+    return handleEntityMutationError(error, t(locale, "actions.businessHoursSaveError"));
   }
 }
 
@@ -549,9 +594,11 @@ export async function upsertBlackoutDateAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
-    const businessId = await getAdminBusinessId();
-    const parsedInput = blackoutSchema.parse({
+    const businessId = await getAdminBusinessId(locale);
+    const parsedInput = buildBlackoutSchema(locale).parse({
       blackoutDateId: getOptionalFormString(formData.get("blackoutDateId")),
       staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
       startsAt: getFormString(formData.get("startsAt")),
@@ -581,9 +628,9 @@ export async function upsertBlackoutDateAction(
     }
 
     revalidateAdminPaths(["/admin/calendar", "/book"]);
-    return buildEntityActionState("success", "Blackout block saved.");
+    return buildEntityActionState("success", t(locale, "actions.blackoutSaved"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to save the blackout date.");
+    return handleEntityMutationError(error, t(locale, "actions.blackoutSaveError"));
   }
 }
 
@@ -591,11 +638,13 @@ export async function deleteBlackoutDateAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
 ): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
   try {
     const blackoutDateId = getFormString(formData.get("blackoutDateId"));
 
     if (!blackoutDateId) {
-      return buildEntityActionState("error", "Blackout block id is missing.");
+      return buildEntityActionState("error", t(locale, "actions.blackoutIdMissing"));
     }
 
     await prisma.blackoutDate.delete({
@@ -605,9 +654,9 @@ export async function deleteBlackoutDateAction(
     });
 
     revalidateAdminPaths(["/admin/calendar", "/book"]);
-    return buildEntityActionState("success", "Blackout block deleted.");
+    return buildEntityActionState("success", t(locale, "actions.blackoutDeleted"));
   } catch (error) {
-    return handleEntityMutationError(error, "Unable to delete the blackout date.");
+    return handleEntityMutationError(error, t(locale, "actions.blackoutDeleteError"));
   }
 }
 
@@ -616,4 +665,46 @@ export async function upsertBrandingAction(
   formData: FormData,
 ): Promise<BrandingActionState> {
   return saveBrandingFromFormData(formData);
+}
+
+export async function updateDefaultLocaleAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const businessId = await getAdminBusinessId(locale);
+    const parsedInput = buildLocalizationSchema(locale).parse({
+      defaultLocale: getFormString(formData.get("defaultLocale")),
+    });
+    const nextLocale = normalizeLocale(parsedInput.defaultLocale);
+
+    await prisma.business.update({
+      where: {
+        id: businessId,
+      },
+      data: {
+        defaultLocale: nextLocale,
+      },
+    });
+
+    revalidateTag("public-branding", "max");
+    revalidateAdminPaths([
+      "/",
+      "/services",
+      "/book",
+      "/admin",
+      "/admin/calendar",
+      "/admin/appointments",
+      "/admin/services",
+      "/admin/staff",
+      "/admin/branding",
+      "/admin/settings",
+    ]);
+
+    return buildEntityActionState("success", t(nextLocale, "actions.languageSaved"));
+  } catch (error) {
+    return handleEntityMutationError(error, t(locale, "actions.languageSaveError"));
+  }
 }

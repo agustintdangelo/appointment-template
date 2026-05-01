@@ -6,16 +6,19 @@ import {
   getBrandAssetConfigs,
   normalizeBrandingSettings,
 } from "@/lib/branding";
+import { t } from "@/lib/i18n";
+import { getBusinessLocale } from "@/lib/locale-server";
 import { getAdminBranding } from "@/lib/queries";
 
 export default async function AdminBrandingPage() {
   const data = await getAdminBranding();
+  const locale = getBusinessLocale(data?.defaultLocale);
 
   if (!data) {
     return (
       <AdminEmptyState
-        title="Seed the database before customizing branding."
-        description="The branding workspace needs the demo business record first."
+        title={t(locale, "admin.branding.emptyTitle")}
+        description={t(locale, "admin.branding.emptyDescription")}
       />
     );
   }
@@ -25,7 +28,7 @@ export default async function AdminBrandingPage() {
     url: buildBrandAssetUrl(asset) ?? "",
   }));
   const assetsByKind = new Map(assets.map((asset) => [asset.kind, asset]));
-  const formAssets: BrandingFormAsset[] = getBrandAssetConfigs().map((config) => ({
+  const formAssets: BrandingFormAsset[] = getBrandAssetConfigs(locale).map((config) => ({
     ...config,
     currentAsset: assetsByKind.get(config.kind) ?? null,
   }));
@@ -33,9 +36,9 @@ export default async function AdminBrandingPage() {
   return (
     <>
       <AdminPageIntro
-        eyebrow="Admin branding"
-        title="Public branding"
-        description="Manage the public site's fonts, colors, logos, and favicon here. The editor stays neutral so you can review branding choices without styling the admin workspace itself."
+        eyebrow={t(locale, "admin.branding.eyebrow")}
+        title={t(locale, "admin.branding.title")}
+        description={t(locale, "admin.branding.description")}
       />
 
       <BrandingForm
@@ -43,6 +46,7 @@ export default async function AdminBrandingPage() {
         businessDescription={data.description}
         initialBranding={normalizeBrandingSettings(data)}
         assets={formAssets}
+        locale={locale}
       />
     </>
   );

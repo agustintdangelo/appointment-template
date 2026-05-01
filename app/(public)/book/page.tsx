@@ -1,17 +1,23 @@
 import { getPrimaryBusiness } from "@/lib/queries";
+import { t } from "@/lib/i18n";
+import { getPublicLocale } from "@/lib/locale-server";
 
 import BookingForm from "./booking-form";
+import CustomerAuthProvider from "./customer-auth-provider";
 
 export const dynamic = "force-dynamic";
 
 export default async function BookPage() {
   const business = await getPrimaryBusiness();
+  const locale = await getPublicLocale(business?.defaultLocale);
 
   if (!business) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-20 text-center sm:px-6 lg:px-8">
-        <p className="text-sm uppercase tracking-[0.3em] text-muted">Setup required</p>
-        <h1 className="font-display text-4xl">Seed the database before opening bookings.</h1>
+        <p className="text-sm uppercase tracking-[0.3em] text-muted">
+          {t(locale, "common.setupRequired")}
+        </p>
+        <h1 className="font-display text-4xl">{t(locale, "common.seedDatabaseBookings")}</h1>
       </div>
     );
   }
@@ -21,35 +27,37 @@ export default async function BookPage() {
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
         <div className="rounded-[2rem] border border-border bg-card/95 p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
-            Booking flow
+            {t(locale, "public.book.eyebrow")}
           </p>
-          <h1 className="mt-4 font-display text-5xl">Select a service, staff member, and live slot.</h1>
+          <h1 className="mt-4 font-display text-5xl">{t(locale, "public.book.title")}</h1>
           <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
-            Every slot comes from real business hours, staff availability, blackout dates, and
-            existing appointments.
+            {t(locale, "public.book.description")}
           </p>
         </div>
 
         <aside className="rounded-[2rem] border border-border bg-surface/90 p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
-            Booking rules
+            {t(locale, "public.book.rules")}
           </p>
           <div className="mt-5 grid gap-3 text-sm leading-7 text-muted">
-            <p>Choose one service and one staff member for this first MVP.</p>
-            <p>Optional service buffers are enforced when generating availability.</p>
-            <p>Appointments are created only after server-side revalidation of the chosen slot.</p>
+            <p>{t(locale, "public.book.ruleServiceStaff")}</p>
+            <p>{t(locale, "public.book.ruleBuffers")}</p>
+            <p>{t(locale, "public.book.ruleRevalidation")}</p>
           </div>
         </aside>
       </section>
 
-      <BookingForm
-        business={{
-          id: business.id,
-          name: business.name,
-        }}
-        services={business.services}
-        staffMembers={business.staffMembers}
-      />
+      <CustomerAuthProvider>
+        <BookingForm
+          business={{
+            id: business.id,
+            name: business.name,
+          }}
+          services={business.services}
+          staffMembers={business.staffMembers}
+          locale={locale}
+        />
+      </CustomerAuthProvider>
     </div>
   );
 }

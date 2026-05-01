@@ -20,6 +20,7 @@ import CreateEntityModal from "@/app/admin/components/create-entity-modal";
 import ListView from "@/app/admin/components/list-view";
 import useSessionCollectionViewMode from "@/app/admin/components/use-session-collection-view";
 import { formatMoney, formatServiceTiming } from "@/lib/format";
+import { t, type AppLocale } from "@/lib/i18n";
 
 type ServiceRecord = {
   id: string;
@@ -38,6 +39,7 @@ type ServiceRecord = {
 
 type ServicesManagerProps = {
   services: ServiceRecord[];
+  locale: AppLocale;
 };
 
 const VIEW_MODE_STORAGE_KEY = "appointment-admin-services-view-mode";
@@ -123,7 +125,13 @@ function EditIconButton({
   );
 }
 
-function SaveServiceButton({ isEditing }: { isEditing: boolean }) {
+function SaveServiceButton({
+  isEditing,
+  locale,
+}: {
+  isEditing: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -132,12 +140,24 @@ function SaveServiceButton({ isEditing }: { isEditing: boolean }) {
       disabled={pending}
       className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save service" : "Create service"}
+      {pending
+        ? isEditing
+          ? t(locale, "common.saving")
+          : t(locale, "common.creating")
+        : isEditing
+          ? t(locale, "admin.services.save")
+          : t(locale, "admin.services.create")}
     </button>
   );
 }
 
-function DeleteServiceButton({ disabled }: { disabled: boolean }) {
+function DeleteServiceButton({
+  disabled,
+  locale,
+}: {
+  disabled: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -146,7 +166,7 @@ function DeleteServiceButton({ disabled }: { disabled: boolean }) {
       disabled={pending || disabled}
       className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "Deleting..." : "Delete service"}
+      {pending ? t(locale, "common.deleting") : t(locale, "admin.services.delete")}
     </button>
   );
 }
@@ -154,9 +174,11 @@ function DeleteServiceButton({ disabled }: { disabled: boolean }) {
 function ServiceModalForm({
   service,
   onClose,
+  locale,
 }: {
   service: ServiceRecord | null;
   onClose: () => void;
+  locale: AppLocale;
 }) {
   const router = useRouter();
   const [saveState, saveAction] = useActionState(upsertServiceAction, initialAdminEntityActionState);
@@ -177,6 +199,7 @@ function ServiceModalForm({
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
         <input type="hidden" name="serviceId" defaultValue={service?.id ?? ""} />
+        <input type="hidden" name="locale" value={locale} />
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner">
@@ -185,7 +208,7 @@ function ServiceModalForm({
         ) : null}
 
         <label className="grid gap-2 text-sm font-medium">
-          Name
+          {t(locale, "admin.services.name")}
           <input
             name="name"
             required
@@ -197,7 +220,7 @@ function ServiceModalForm({
         </label>
 
         <label className="grid gap-2 text-sm font-medium">
-          Slug
+          {t(locale, "admin.services.slug")}
           <input
             name="slug"
             defaultValue={service?.slug ?? ""}
@@ -207,7 +230,7 @@ function ServiceModalForm({
         </label>
 
         <label className="grid gap-2 text-sm font-medium">
-          Description
+          {t(locale, "admin.services.descriptionField")}
           <textarea
             name="description"
             rows={5}
@@ -219,7 +242,7 @@ function ServiceModalForm({
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="grid gap-2 text-sm font-medium">
-            Duration (minutes)
+            {t(locale, "admin.services.duration")}
             <input
               name="durationMinutes"
               type="number"
@@ -233,7 +256,7 @@ function ServiceModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Buffer (minutes)
+            {t(locale, "admin.services.buffer")}
             <input
               name="bufferMinutes"
               type="number"
@@ -247,7 +270,7 @@ function ServiceModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Price
+            {t(locale, "common.price")}
             <input
               name="price"
               type="number"
@@ -261,7 +284,7 @@ function ServiceModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Sort order
+            {t(locale, "admin.services.sortOrder")}
             <input
               name="sortOrder"
               type="number"
@@ -282,17 +305,17 @@ function ServiceModalForm({
             defaultChecked={service ? service.isActive : true}
             className="admin-checkbox"
           />
-          Active and bookable
+          {t(locale, "admin.services.activeBookable")}
         </label>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          <SaveServiceButton isEditing={!!service} />
+          <SaveServiceButton isEditing={!!service} locale={locale} />
           <button
             type="button"
             onClick={onClose}
             className="admin-button-secondary"
           >
-            Cancel
+            {t(locale, "common.cancel")}
           </button>
         </div>
       </form>
@@ -302,16 +325,17 @@ function ServiceModalForm({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
-                Danger zone
+                {t(locale, "admin.services.danger")}
               </p>
               <p className="mt-2 text-sm leading-7 text-muted">
-                Delete this service only if it has no linked appointments. Otherwise deactivate it.
+                {t(locale, "admin.services.dangerDescription")}
               </p>
             </div>
 
             <form action={deleteAction}>
               <input type="hidden" name="serviceId" defaultValue={service.id} />
-              <DeleteServiceButton disabled={!canDelete} />
+              <input type="hidden" name="locale" value={locale} />
+              <DeleteServiceButton disabled={!canDelete} locale={locale} />
             </form>
           </div>
 
@@ -321,7 +345,7 @@ function ServiceModalForm({
 
           {!canDelete ? (
             <p className="mt-3 text-sm text-muted">
-              This service already has appointments. Deactivate it instead of deleting it.
+              {t(locale, "admin.services.cannotDelete")}
             </p>
           ) : null}
         </div>
@@ -330,7 +354,7 @@ function ServiceModalForm({
   );
 }
 
-function AddServiceCard({ onCreate }: { onCreate: () => void }) {
+function AddServiceCard({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -354,9 +378,11 @@ function AddServiceCard({ onCreate }: { onCreate: () => void }) {
       </div>
 
       <div>
-        <p className="text-xl font-semibold text-slate-900">Add service</p>
+        <p className="text-xl font-semibold text-slate-900">
+          {t(locale, "admin.services.add")}
+        </p>
         <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
-          Create a new service directly from the collection, without using a separate top action button.
+          {t(locale, "admin.services.addDescription")}
         </p>
       </div>
     </button>
@@ -366,9 +392,11 @@ function AddServiceCard({ onCreate }: { onCreate: () => void }) {
 function ServiceCard({
   service,
   onEdit,
+  locale,
 }: {
   service: ServiceRecord;
   onEdit: (service: ServiceRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="admin-card p-6">
@@ -381,32 +409,35 @@ function ServiceCard({
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full border border-border bg-surface px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {service.isActive ? "Active" : "Inactive"}
+            {service.isActive ? t(locale, "common.active") : t(locale, "common.inactive")}
           </span>
-          <EditIconButton label={`Edit ${service.name}`} onClick={() => onEdit(service)} />
+          <EditIconButton
+            label={t(locale, "admin.services.editLabel", { name: service.name })}
+            onClick={() => onEdit(service)}
+          />
         </div>
       </div>
 
       <p className="mt-4 min-h-[4.5rem] line-clamp-3 text-sm leading-7 text-muted">
-        {service.description ?? "No description yet."}
+        {service.description ?? t(locale, "common.noDescription")}
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatServiceTiming(service.durationMinutes, service.bufferMinutes)}
+          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatMoney(service.priceCents)}
+          {formatMoney(service.priceCents, locale)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {service._count?.appointments ?? 0} appointments
+          {t(locale, "common.appointments")}: {service._count?.appointments ?? 0}
         </span>
       </div>
     </article>
   );
 }
 
-function AddServiceListRow({ onCreate }: { onCreate: () => void }) {
+function AddServiceListRow({ onCreate, locale }: { onCreate: () => void; locale: AppLocale }) {
   return (
     <button
       type="button"
@@ -430,8 +461,12 @@ function AddServiceListRow({ onCreate }: { onCreate: () => void }) {
           </svg>
         </span>
         <div>
-          <p className="text-lg font-semibold text-slate-900">Add service</p>
-          <p className="mt-1 text-sm text-muted">Create a new catalog item</p>
+          <p className="text-lg font-semibold text-slate-900">
+            {t(locale, "admin.services.add")}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {t(locale, "admin.services.addListDescription")}
+          </p>
         </div>
       </div>
     </button>
@@ -441,9 +476,11 @@ function AddServiceListRow({ onCreate }: { onCreate: () => void }) {
 function ServiceListRow({
   service,
   onEdit,
+  locale,
 }: {
   service: ServiceRecord;
   onEdit: (service: ServiceRecord) => void;
+  locale: AppLocale;
 }) {
   return (
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
@@ -451,7 +488,7 @@ function ServiceListRow({
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-lg font-semibold text-slate-900">{service.name}</p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
-            {service.isActive ? "Active" : "Inactive"}
+            {service.isActive ? t(locale, "common.active") : t(locale, "common.inactive")}
           </span>
         </div>
         <p className="mt-2 line-clamp-2 text-sm text-muted">{service.description ?? service.slug}</p>
@@ -459,15 +496,18 @@ function ServiceListRow({
 
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatServiceTiming(service.durationMinutes, service.bufferMinutes)}
+          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatMoney(service.priceCents)}
+          {formatMoney(service.priceCents, locale)}
         </span>
       </div>
 
       <div className="flex justify-start md:justify-end">
-        <EditIconButton label={`Edit ${service.name}`} onClick={() => onEdit(service)} />
+        <EditIconButton
+          label={t(locale, "admin.services.editLabel", { name: service.name })}
+          onClick={() => onEdit(service)}
+        />
       </div>
     </article>
   );
@@ -499,7 +539,7 @@ function EmptyResults({
   );
 }
 
-export default function ServicesManager({ services }: ServicesManagerProps) {
+export default function ServicesManager({ services, locale }: ServicesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminCollectionStatusFilter>("all");
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
@@ -534,8 +574,8 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
   return (
     <>
       <AdminListHeader
-        searchLabel="Search services"
-        searchPlaceholder="Search by name, slug, or description"
+        searchLabel={t(locale, "admin.services.searchLabel")}
+        searchPlaceholder={t(locale, "admin.services.searchPlaceholder")}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         statusFilter={statusFilter}
@@ -544,10 +584,14 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
         onSortChange={setSortValue}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        locale={locale}
         summary={
           <div className="flex flex-wrap items-center gap-3">
             <span>
-              Showing {visibleServices.length} of {services.length} services.
+              {t(locale, "admin.services.showing", {
+                visible: visibleServices.length,
+                total: services.length,
+              })}
             </span>
             {hasFilters ? (
               <button
@@ -555,7 +599,7 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
                 onClick={resetFilters}
                 className="admin-link"
               >
-                Clear filters
+                {t(locale, "common.clearFilters")}
               </button>
             ) : null}
           </div>
@@ -564,9 +608,9 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
 
       {visibleServices.length === 0 && hasFilters ? (
         <EmptyResults
-          title="No services match these filters."
-          description="Try a different search or reset the current filters to bring the full catalog back into view."
-          actionLabel="Reset filters"
+          title={t(locale, "admin.services.noMatchesTitle")}
+          description={t(locale, "admin.services.noMatchesDescription")}
+          actionLabel={t(locale, "common.resetFilters")}
           onAction={resetFilters}
         />
       ) : (
@@ -575,12 +619,17 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
           transitionKey={`${viewMode}:${sortValue}`}
           cards={
             <CardGrid>
-              <AddServiceCard key="create-service" onCreate={() => setIsCreateModalOpen(true)} />
+              <AddServiceCard
+                key="create-service"
+                onCreate={() => setIsCreateModalOpen(true)}
+                locale={locale}
+              />
               {visibleServices.map((service) => (
                 <ServiceCard
                   key={service.id}
                   service={service}
                   onEdit={(selectedService) => setEditingService(selectedService)}
+                  locale={locale}
                 />
               ))}
             </CardGrid>
@@ -590,12 +639,14 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
               <AddServiceListRow
                 key="create-service-row"
                 onCreate={() => setIsCreateModalOpen(true)}
+                locale={locale}
               />
               {visibleServices.map((service) => (
                 <div key={service.id} className="border-t border-border">
                   <ServiceListRow
                     service={service}
                     onEdit={(selectedService) => setEditingService(selectedService)}
+                    locale={locale}
                   />
                 </div>
               ))}
@@ -605,17 +656,23 @@ export default function ServicesManager({ services }: ServicesManagerProps) {
       )}
 
       <CreateEntityModal
-        eyebrow={modalService ? "Edit service" : "Create service"}
-        title={modalService ? modalService.name : "Add a new service"}
+        eyebrow={
+          modalService
+            ? t(locale, "admin.services.editEyebrow")
+            : t(locale, "admin.services.createEyebrow")
+        }
+        title={modalService ? modalService.name : t(locale, "admin.services.addTitle")}
         description={
           modalService
-            ? "Update one service without leaving the catalog, then close the modal and return to browsing."
-            : "Create a new service in a focused modal instead of pushing the entire collection down the page."
+            ? t(locale, "admin.services.editDescription")
+            : t(locale, "admin.services.createDescription")
         }
         isOpen={isModalOpen}
         onClose={closeModal}
+        closeLabel={t(locale, "common.close")}
+        closeAriaLabel={t(locale, "common.closeDialog")}
       >
-        <ServiceModalForm service={modalService} onClose={closeModal} />
+        <ServiceModalForm service={modalService} onClose={closeModal} locale={locale} />
       </CreateEntityModal>
     </>
   );

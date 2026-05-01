@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { AppointmentStatus, PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
 
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL,
@@ -29,8 +30,13 @@ function withTime(date, hours, minutes = 0) {
   return next;
 }
 
+function demoManagementTokenHash(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 async function main() {
   await prisma.appointment.deleteMany();
+  await prisma.customer.deleteMany();
   await prisma.brandAsset.deleteMany();
   await prisma.blackoutDate.deleteMany();
   await prisma.staffAvailability.deleteMany();
@@ -53,6 +59,7 @@ async function main() {
       heroHeadline: "Calm booking for clients. Clear scheduling for the team.",
       heroSubheadline:
         "This demo shows how the template can feel branded without baking vertical-specific logic into the core product.",
+      defaultLocale: "es",
       primaryFont: "INTER",
       secondaryFont: "PLAYFAIR_DISPLAY",
       primaryColor: "#1b625a",
@@ -246,6 +253,13 @@ async function main() {
         customerName: "Mia Carter",
         customerEmail: "mia@example.com",
         customerPhone: "555-0101",
+        guestFullName: "Mia Carter",
+        guestEmail: "mia@example.com",
+        guestPhone: "555-0101",
+        contactEmail: "mia@example.com",
+        contactPhone: "555-0101",
+        bookingType: "GUEST",
+        managementTokenHash: demoManagementTokenHash("demo-management-token-a1"),
         status: AppointmentStatus.CONFIRMED,
         confirmationCode: "DEMO-A1",
         startAt: withTime(firstOpenDate, 10, 0),
@@ -258,6 +272,13 @@ async function main() {
         customerName: "Nora Ellis",
         customerEmail: "nora@example.com",
         customerPhone: "555-0102",
+        guestFullName: "Nora Ellis",
+        guestEmail: "nora@example.com",
+        guestPhone: "555-0102",
+        contactEmail: "nora@example.com",
+        contactPhone: "555-0102",
+        bookingType: "GUEST",
+        managementTokenHash: demoManagementTokenHash("demo-management-token-b2"),
         status: AppointmentStatus.PENDING,
         confirmationCode: "DEMO-B2",
         startAt: withTime(firstOpenDate, 13, 30),
@@ -270,6 +291,13 @@ async function main() {
         customerName: "Ella Romero",
         customerEmail: "ella@example.com",
         customerPhone: "555-0103",
+        guestFullName: "Ella Romero",
+        guestEmail: "ella@example.com",
+        guestPhone: "555-0103",
+        contactEmail: "ella@example.com",
+        contactPhone: "555-0103",
+        bookingType: "GUEST",
+        managementTokenHash: demoManagementTokenHash("demo-management-token-c3"),
         status: AppointmentStatus.CONFIRMED,
         confirmationCode: "DEMO-C3",
         startAt: withTime(secondOpenDate, 10, 30),

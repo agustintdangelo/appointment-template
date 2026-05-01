@@ -5,6 +5,8 @@ import {
   getAdminNotice,
 } from "@/app/admin/admin-ui";
 import StaffManager from "@/app/admin/staff/staff-manager";
+import { t } from "@/lib/i18n";
+import { getBusinessLocale } from "@/lib/locale-server";
 import { getAdminStaffMembers } from "@/lib/queries";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -18,12 +20,13 @@ export default async function AdminStaffPage({
     getAdminStaffMembers(),
     getAdminNotice(searchParams),
   ]);
+  const locale = getBusinessLocale(data?.business.defaultLocale);
 
   if (!data) {
     return (
       <AdminEmptyState
-        title="Seed the database before managing staff."
-        description="The staff management page needs the demo business record first."
+        title={t(locale, "admin.staff.emptyTitle")}
+        description={t(locale, "admin.staff.emptyDescription")}
       />
     );
   }
@@ -31,14 +34,14 @@ export default async function AdminStaffPage({
   return (
     <>
       <AdminPageIntro
-        eyebrow="Admin staff"
-        title="Manage the people attached to appointments."
-        description="Search, filter, sort, and manage staff from a cleaner workspace that scales better as the team grows."
+        eyebrow={t(locale, "admin.staff.eyebrow")}
+        title={t(locale, "admin.staff.title")}
+        description={t(locale, "admin.staff.description")}
       />
 
       <AdminNotice notice={notice} />
 
-      <StaffManager staffMembers={data.staffMembers} />
+      <StaffManager staffMembers={data.staffMembers} locale={locale} />
     </>
   );
 }

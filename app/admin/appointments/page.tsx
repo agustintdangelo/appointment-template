@@ -3,6 +3,8 @@ import {
   AdminPageIntro,
 } from "@/app/admin/admin-ui";
 import { formatAppointmentDateTime } from "@/lib/format";
+import { formatAppointmentBookingType, formatAppointmentStatus, t } from "@/lib/i18n";
+import { getBusinessLocale } from "@/lib/locale-server";
 import { getAdminAppointments } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +27,13 @@ function getStatusClasses(status: string) {
 
 export default async function AdminAppointmentsPage() {
   const data = await getAdminAppointments();
+  const locale = getBusinessLocale(data?.business.defaultLocale);
 
   if (!data) {
     return (
       <AdminEmptyState
-        title="Seed the database before checking appointments."
-        description="The admin pages need the demo business record first."
+        title={t(locale, "admin.appointments.emptyTitle")}
+        description={t(locale, "admin.noticeSeedBusiness")}
       />
     );
   }
@@ -38,21 +41,23 @@ export default async function AdminAppointmentsPage() {
   return (
     <>
       <AdminPageIntro
-        eyebrow="Admin appointments"
-        title={`${data.business.name} appointment queue`}
-        description="This first operational view stays simple: upcoming appointments, customer details, service context, and status visibility."
+        eyebrow={t(locale, "admin.appointments.eyebrow")}
+        title={t(locale, "admin.appointments.title", { businessName: data.business.name })}
+        description={t(locale, "admin.appointments.description")}
       />
 
       <section className="admin-list-shell">
         <div className="grid grid-cols-[1.15fr_0.9fr_0.9fr_0.6fr] gap-4 border-b border-border px-6 py-4 text-xs font-semibold uppercase tracking-[0.3em] text-muted">
-          <p>Customer</p>
-          <p>Appointment</p>
-          <p>Staff</p>
-          <p>Status</p>
+          <p>{t(locale, "common.customer")}</p>
+          <p>{t(locale, "common.appointment")}</p>
+          <p>{t(locale, "common.staff")}</p>
+          <p>{t(locale, "common.status")}</p>
         </div>
 
         {data.appointments.length === 0 ? (
-          <div className="px-6 py-10 text-sm text-muted">No appointments yet.</div>
+          <div className="px-6 py-10 text-sm text-muted">
+            {t(locale, "admin.appointments.noAppointments")}
+          </div>
         ) : (
           <div className="divide-y divide-border">
             {data.appointments.map((appointment) => (
@@ -62,19 +67,37 @@ export default async function AdminAppointmentsPage() {
               >
                 <div>
                   <p className="font-semibold">{appointment.customerName}</p>
-                  <p className="mt-1 text-muted">{appointment.customerEmail}</p>
-                  <p className="text-muted">{appointment.customerPhone ?? "No phone provided"}</p>
+                  <p className="mt-1 text-muted">
+                    {appointment.contactEmail ?? appointment.customerEmail}
+                  </p>
+                  <p className="text-muted">
+                    {appointment.contactPhone ??
+                      appointment.customerPhone ??
+                      t(locale, "common.noPhoneProvided")}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                    {t(locale, "common.bookingSource")}:{" "}
+                    {formatAppointmentBookingType(appointment.bookingType, locale)}
+                  </p>
                 </div>
 
                 <div>
                   <p className="font-semibold">{appointment.service.name}</p>
-                  <p className="mt-1 text-muted">{formatAppointmentDateTime(appointment.startAt)}</p>
-                  <p className="text-muted">Code: {appointment.confirmationCode}</p>
+                  <p className="mt-1 text-muted">
+                    {formatAppointmentDateTime(appointment.startAt, locale)}
+                  </p>
+                  <p className="text-muted">
+                    {t(locale, "common.code")}: {appointment.confirmationCode}
+                  </p>
                 </div>
 
                 <div>
-                  <p className="font-semibold">{appointment.staffMember?.name ?? "Unassigned"}</p>
-                  <p className="mt-1 text-muted">{appointment.notes ?? "No internal notes"}</p>
+                  <p className="font-semibold">
+                    {appointment.staffMember?.name ?? t(locale, "common.unassigned")}
+                  </p>
+                  <p className="mt-1 text-muted">
+                    {appointment.notes ?? t(locale, "common.noInternalNotes")}
+                  </p>
                 </div>
 
                 <div>
@@ -83,7 +106,7 @@ export default async function AdminAppointmentsPage() {
                       appointment.status,
                     )}
                   >
-                    {appointment.status}
+                    {formatAppointmentStatus(appointment.status, locale)}
                   </span>
                 </div>
               </article>

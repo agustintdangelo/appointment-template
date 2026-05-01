@@ -30,6 +30,17 @@ enum BrandAssetKind {
   FAVICON
 }
 
+enum CustomerAuthProvider {
+  GOOGLE
+  APPLE
+}
+
+enum AppointmentBookingType {
+  GUEST
+  GOOGLE
+  APPLE
+}
+
 model Business {
   id                String             @id @default(cuid())
   name              String
@@ -40,6 +51,7 @@ model Business {
   description       String?
   heroHeadline      String?
   heroSubheadline   String?
+  defaultLocale     String             @default("es")
   primaryFont       BrandFont          @default(INTER)
   secondaryFont     BrandFont          @default(PLAYFAIR_DISPLAY)
   primaryColor      String             @default("#1b625a")
@@ -151,26 +163,51 @@ model BlackoutDate {
   @@index([staffMemberId, startsAt, endsAt])
 }
 
+model Customer {
+  id                String               @id @default(cuid())
+  name              String?
+  email             String?
+  image             String?
+  authProvider      CustomerAuthProvider
+  providerAccountId String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  appointments      Appointment[]
+
+  @@unique([authProvider, providerAccountId])
+  @@index([email])
+}
+
 model Appointment {
-  id               String            @id @default(cuid())
-  businessId       String
-  serviceId        String
-  staffMemberId    String?
-  customerName     String
-  customerEmail    String
-  customerPhone    String?
-  notes            String?
-  status           AppointmentStatus @default(PENDING)
-  confirmationCode String            @unique
-  startAt          DateTime
-  endAt            DateTime
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  service          Service           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  staffMember      StaffMember?      @relation(fields: [staffMemberId], references: [id], onDelete: SetNull)
+  id                  String                 @id @default(cuid())
+  businessId          String
+  serviceId           String
+  staffMemberId       String?
+  customerId          String?
+  customerName        String
+  customerEmail       String
+  customerPhone       String?
+  guestFullName       String?
+  guestEmail          String?
+  guestPhone          String?
+  contactEmail        String?
+  contactPhone        String?
+  bookingType         AppointmentBookingType @default(GUEST)
+  managementTokenHash String?                @unique
+  notes               String?
+  status              AppointmentStatus      @default(PENDING)
+  confirmationCode    String                 @unique
+  startAt             DateTime
+  endAt               DateTime
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  business            Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer            Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  service             Service                @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staffMember         StaffMember?           @relation(fields: [staffMemberId], references: [id], onDelete: SetNull)
 
   @@index([businessId, startAt])
+  @@index([customerId])
   @@index([staffMemberId, startAt])
 }
 

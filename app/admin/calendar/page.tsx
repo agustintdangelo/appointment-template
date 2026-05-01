@@ -3,18 +3,21 @@ import {
   AdminPageIntro,
 } from "@/app/admin/admin-ui";
 import CalendarManager from "@/app/admin/calendar/calendar-manager";
+import { t } from "@/lib/i18n";
+import { getBusinessLocale } from "@/lib/locale-server";
 import { getAdminCalendar } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCalendarPage() {
   const data = await getAdminCalendar();
+  const locale = getBusinessLocale(data?.business.defaultLocale);
 
   if (!data) {
     return (
       <AdminEmptyState
-        title="Seed the database before opening the calendar."
-        description="The calendar workspace needs the demo business record before it can show appointments, schedules, and blackout dates."
+        title={t(locale, "admin.calendar.emptyTitle")}
+        description={t(locale, "admin.calendar.emptyDescription")}
       />
     );
   }
@@ -22,9 +25,9 @@ export default async function AdminCalendarPage() {
   return (
     <>
       <AdminPageIntro
-        eyebrow="Admin calendar"
-        title={`${data.business.name} scheduling calendar`}
-        description="Track appointments, compare them against unavailable time, and manage blackout rules from one shared scheduling workspace."
+        eyebrow={t(locale, "admin.calendar.eyebrow")}
+        title={t(locale, "admin.calendar.title", { businessName: data.business.name })}
+        description={t(locale, "admin.calendar.description")}
       />
 
       <CalendarManager
@@ -32,6 +35,7 @@ export default async function AdminCalendarPage() {
         staffMembers={data.staffMembers}
         appointments={data.appointments}
         blackoutDates={data.blackoutDates}
+        locale={locale}
       />
     </>
   );

@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { DEFAULT_LOCALE, t } from "@/lib/i18n";
+
 export const brandFontValues = [
   "INTER",
   "MANROPE",
@@ -117,22 +119,22 @@ const brandingPrimaryContrastThreshold = 3;
 
 const brandAssetConfig = {
   LOGO: {
-    label: "Main logo",
-    description: "Used on light backgrounds like the site header.",
+    labelKey: "branding.assets.logo.label",
+    descriptionKey: "branding.assets.logo.description",
     maxSizeBytes: 2 * 1024 * 1024,
     allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
     accept: ".png,.jpg,.jpeg,.webp",
   },
   LOGO_ALT: {
-    label: "Alternate logo",
-    description: "Used on dark surfaces when you need a reversed logo treatment.",
+    labelKey: "branding.assets.logoAlt.label",
+    descriptionKey: "branding.assets.logoAlt.description",
     maxSizeBytes: 2 * 1024 * 1024,
     allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
     accept: ".png,.jpg,.jpeg,.webp",
   },
   FAVICON: {
-    label: "Favicon",
-    description: "Used for the browser tab icon and app metadata.",
+    labelKey: "branding.assets.favicon.label",
+    descriptionKey: "branding.assets.favicon.description",
     maxSizeBytes: 512 * 1024,
     allowedMimeTypes: ["image/png", "image/x-icon", "image/vnd.microsoft.icon"],
     accept: ".png,.ico",
@@ -140,8 +142,8 @@ const brandAssetConfig = {
 } as const satisfies Record<
   BrandAssetKindValue,
   {
-    label: string;
-    description: string;
+    labelKey: string;
+    descriptionKey: string;
     maxSizeBytes: number;
     allowedMimeTypes: readonly string[];
     accept: string;
@@ -181,7 +183,23 @@ export function getBrandFontOptions() {
   return brandFontOptions;
 }
 
-export function getBrandFontOptionsByCategory() {
+function getBrandFontCategoryLabel(category: BrandFontOption["category"], localeInput: unknown) {
+  if (category === "Sans serif") {
+    return t(localeInput, "branding.fontCategories.sansSerif");
+  }
+
+  if (category === "Serif") {
+    return t(localeInput, "branding.fontCategories.serif");
+  }
+
+  if (category === "Display") {
+    return t(localeInput, "branding.fontCategories.display");
+  }
+
+  return t(localeInput, "branding.fontCategories.modernElegant");
+}
+
+export function getBrandFontOptionsByCategory(localeInput: unknown = DEFAULT_LOCALE) {
   return Object.entries(
     brandFontOptions.reduce<Record<string, BrandFontOption[]>>((groups, option) => {
       groups[option.category] ??= [];
@@ -189,7 +207,7 @@ export function getBrandFontOptionsByCategory() {
       return groups;
     }, {}),
   ).map(([category, options]) => ({
-    category,
+    category: getBrandFontCategoryLabel(category as BrandFontOption["category"], localeInput),
     options,
   }));
 }
@@ -198,10 +216,12 @@ export function getBrandAssetConfig(kind: BrandAssetKindValue) {
   return brandAssetConfig[kind];
 }
 
-export function getBrandAssetConfigs() {
+export function getBrandAssetConfigs(localeInput: unknown = DEFAULT_LOCALE) {
   return brandAssetKinds.map((kind) => ({
     kind,
     ...brandAssetConfig[kind],
+    label: t(localeInput, brandAssetConfig[kind].labelKey),
+    description: t(localeInput, brandAssetConfig[kind].descriptionKey),
   }));
 }
 
@@ -349,6 +369,7 @@ function getFontStack(font: BrandFontValue) {
 
 export function getBrandingWarnings(
   input: Partial<Record<keyof BrandingSettings, string | null | undefined>>,
+  localeInput: unknown = DEFAULT_LOCALE,
 ) {
   const normalizedSettings = normalizeBrandingSettings(input);
   const warnings: BrandingWarning[] = [];
@@ -361,9 +382,9 @@ export function getBrandingWarnings(
   if (textContrast < brandingTextContrastThreshold) {
     warnings.push({
       id: "text-background-contrast",
-      message: `Text and background contrast is ${textContrast.toFixed(
-        2,
-      )}:1. This may be difficult to read for some visitors.`,
+      message: t(localeInput, "validation.contrastText", {
+        ratio: textContrast.toFixed(2),
+      }),
     });
   }
 
@@ -375,9 +396,9 @@ export function getBrandingWarnings(
   if (primaryContrast < brandingPrimaryContrastThreshold) {
     warnings.push({
       id: "primary-background-contrast",
-      message: `Primary color contrast against the background is ${primaryContrast.toFixed(
-        2,
-      )}:1. Buttons and emphasis surfaces may feel low contrast.`,
+      message: t(localeInput, "validation.contrastPrimary", {
+        ratio: primaryContrast.toFixed(2),
+      }),
     });
   }
 
@@ -445,6 +466,7 @@ export function buildBrandingCssVariables(
 export async function readValidatedBrandAssetUpload(
   kind: BrandAssetKindValue,
   value: FormDataEntryValue | null,
+  localeInput: unknown = DEFAULT_LOCALE,
 ) {
   if (!(value instanceof File) || value.size === 0) {
     return null;
@@ -454,7 +476,10 @@ export async function readValidatedBrandAssetUpload(
 
   if (!config.allowedMimeTypes.some((mimeType) => mimeType === value.type)) {
     throw new Error(
-      `${config.label} must use one of these file types: ${config.allowedMimeTypes.join(", ")}.`,
+      t(localeInput, "validation.assetMime", {
+        label: t(localeInput, config.labelKey),
+        types: config.allowedMimeTypes.join(", "),
+      }),
     );
   }
 
@@ -465,7 +490,10 @@ export async function readValidatedBrandAssetUpload(
         : `${config.maxSizeBytes / 1024} KB`;
 
     throw new Error(
-      `${config.label} must be ${sizeLabel} or smaller.`,
+      t(localeInput, "validation.assetSize", {
+        label: t(localeInput, config.labelKey),
+        size: sizeLabel,
+      }),
     );
   }
 

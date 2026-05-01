@@ -1,7 +1,9 @@
 import { AppointmentStatus } from "@prisma/client";
 import { addDays, addMinutes, format, getDay, parseISO, startOfDay } from "date-fns";
+import { createHash, randomBytes } from "node:crypto";
 
 import { intersectDateWindows } from "@/lib/business-hours";
+import { DEFAULT_LOCALE, getDateFnsLocale, normalizeLocale } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
 const SLOT_INTERVAL_MINUTES = 15;
@@ -33,7 +35,11 @@ function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA.getTime() < endB.getTime() && endA.getTime() > startB.getTime();
 }
 
-export async function getDailyAvailability(input: AvailabilityInput) {
+export async function getDailyAvailability(
+  input: AvailabilityInput,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
+  const locale = normalizeLocale(localeInput);
   const targetDay = parseISO(input.date);
   const dayStart = startOfDay(targetDay);
   const dayEnd = addDays(dayStart, 1);
@@ -144,11 +150,11 @@ export async function getDailyAvailability(input: AvailabilityInput) {
   ]);
 
   if (!service) {
-    throw new Error("Service not found.");
+    throw new Error("SERVICE_NOT_FOUND");
   }
 
   if (!staffMember) {
-    throw new Error("Staff member not found.");
+    throw new Error("STAFF_NOT_FOUND");
   }
 
   const isBusinessClosed = businessHoursDay?.isClosed ?? businessHours.length === 0;
@@ -208,7 +214,7 @@ export async function getDailyAvailability(input: AvailabilityInput) {
         startAt: new Date(cursor),
         endAt: serviceEnd,
         occupiedUntil,
-        label: format(cursor, "h:mm a"),
+        label: format(cursor, "h:mm a", { locale: getDateFnsLocale(locale) }),
       });
     }
   }
@@ -222,4 +228,14 @@ export async function getDailyAvailability(input: AvailabilityInput) {
 
 export function createConfirmationCode() {
   return crypto.randomUUID().split("-")[0].toUpperCase();
+}
+
+export function createAppointmentManagementToken() {
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  return {
+    token,
+    tokenHash,
+  };
 }

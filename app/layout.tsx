@@ -85,7 +85,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="es"
       className={`h-full antialiased ${inter.variable} ${manrope.variable} ${dmSans.variable} ${spaceGrotesk.variable} ${lora.variable} ${playfairDisplay.variable} ${cormorantGaramond.variable} ${fraunces.variable}`}
     >
       <body className="min-h-full bg-background text-foreground">{children}</body>

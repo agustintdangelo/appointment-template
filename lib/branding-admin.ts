@@ -15,38 +15,41 @@ import {
   normalizeHexColor,
   readValidatedBrandAssetUpload,
 } from "@/lib/branding";
+import { DEFAULT_LOCALE, normalizeLocale, t } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
-function brandFontField(label: string) {
+function brandFontField(label: string, locale: unknown) {
   return z
     .string()
     .trim()
-    .min(1, `${label} is required.`)
+    .min(1, t(locale, "validation.required", { label }))
     .refine((value) => isBrandFontValue(value), {
-      message: `${label} must use one of the supported fonts.`,
+      message: t(locale, "validation.supportedFont", { label }),
     })
     .transform((value) => value as (typeof brandFontValues)[number]);
 }
 
-function hexColorField(label: string) {
+function hexColorField(label: string, locale: unknown) {
   return z
     .string()
     .trim()
-    .min(1, `${label} is required.`)
+    .min(1, t(locale, "validation.required", { label }))
     .refine((value) => normalizeHexColor(value) !== null, {
-      message: `${label} must be a valid 6-digit hex color.`,
+      message: t(locale, "validation.hexColor", { label }),
     })
     .transform((value) => normalizeHexColor(value) as string);
 }
 
-const brandingSchema = z.object({
-  primaryFont: brandFontField("Primary font"),
-  secondaryFont: brandFontField("Secondary font"),
-  primaryColor: hexColorField("Primary color"),
-  secondaryColor: hexColorField("Secondary color"),
-  backgroundColor: hexColorField("Background color"),
-  textColor: hexColorField("Text color"),
-});
+function buildBrandingSchema(locale: unknown) {
+  return z.object({
+    primaryFont: brandFontField(t(locale, "admin.branding.primaryFont"), locale),
+    secondaryFont: brandFontField(t(locale, "admin.branding.secondaryFont"), locale),
+    primaryColor: hexColorField(t(locale, "admin.branding.primaryColor"), locale),
+    secondaryColor: hexColorField(t(locale, "admin.branding.secondaryColor"), locale),
+    backgroundColor: hexColorField(t(locale, "admin.branding.backgroundColor"), locale),
+    textColor: hexColorField(t(locale, "admin.branding.textColor"), locale),
+  });
+}
 
 function buildFieldErrors(error: z.ZodError) {
   const fieldErrors: Record<string, string> = {};
@@ -208,14 +211,15 @@ function revalidateBrandingPaths() {
 }
 
 export async function saveBrandingFromFormData(formData: FormData): Promise<BrandingActionState> {
+  const locale = normalizeLocale(getFormString(formData.get("locale")) || DEFAULT_LOCALE);
   const currentSnapshot = await getCurrentBrandingSnapshot();
 
   if (!currentSnapshot.businessId) {
-    return buildBrandingActionState("error", "Seed the database before managing branding.");
+    return buildBrandingActionState("error", t(locale, "actions.brandingSeed"));
   }
 
   try {
-    const parsedInput = brandingSchema.parse({
+    const parsedInput = buildBrandingSchema(locale).parse({
       primaryFont: getFormString(formData.get("primaryFont")),
       secondaryFont: getFormString(formData.get("secondaryFont")),
       primaryColor: getFormString(formData.get("primaryColor")),
@@ -234,6 +238,7 @@ export async function saveBrandingFromFormData(formData: FormData): Promise<Bran
         const upload = await readValidatedBrandAssetUpload(
           kind,
           formData.get(getBrandAssetFieldName(kind)),
+          locale,
         );
 
         if (upload) {
@@ -241,14 +246,14 @@ export async function saveBrandingFromFormData(formData: FormData): Promise<Bran
         }
       } catch (error) {
         assetFieldErrors[getBrandAssetFieldName(kind)] =
-          error instanceof Error ? error.message : "Unable to read the uploaded file.";
+          error instanceof Error ? error.message : t(locale, "actions.brandingUploadReadError");
       }
     }
 
     if (Object.keys(assetFieldErrors).length > 0) {
       return buildBrandingActionState(
         "error",
-        "Review the highlighted branding fields.",
+        t(locale, "actions.brandingReviewFields"),
         assetFieldErrors,
         currentSnapshot.savedBranding,
         currentSnapshot.savedAssets,
@@ -336,7 +341,7 @@ export async function saveBrandingFromFormData(formData: FormData): Promise<Bran
     if (!savedBranding) {
       return buildBrandingActionState(
         "error",
-        "Unable to load the saved branding.",
+        t(locale, "actions.brandingLoadSavedError"),
         {},
         currentSnapshot.savedBranding,
         currentSnapshot.savedAssets,
@@ -347,12 +352,12 @@ export async function saveBrandingFromFormData(formData: FormData): Promise<Bran
 
     return buildBrandingActionState(
       "success",
-      "Branding saved.",
+      t(locale, "actions.brandingSaved"),
       {},
       normalizeBrandingSettings(savedBranding),
       buildSavedBrandingAssets(savedBranding.brandAssets),
     );
   } catch (error) {
-    return handleBrandingMutationError(error, "Unable to save branding.", currentSnapshot);
+    return handleBrandingMutationError(error, t(locale, "actions.brandingSaveError"), currentSnapshot);
   }
 }

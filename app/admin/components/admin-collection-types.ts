@@ -13,12 +13,3 @@ export const initialAdminEntityActionState: AdminEntityActionState = {
   message: null,
   fieldErrors: {},
 };
-
-export const adminCollectionStatusOptions: Array<{
-  value: AdminCollectionStatusFilter;
-  label: string;
-}> = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];

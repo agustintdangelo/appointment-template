@@ -19,12 +19,14 @@ import {
   type BrandAssetKindValue,
   type BrandingSettings,
 } from "@/lib/branding";
+import { t, type AppLocale } from "@/lib/i18n";
 
 type BrandingFormProps = {
   businessName: string;
   businessDescription: string | null;
   initialBranding: BrandingSettings;
   assets: BrandingFormAsset[];
+  locale: AppLocale;
 };
 
 type FileState = Record<BrandAssetKindValue, File | null>;
@@ -100,21 +102,27 @@ function FormErrorText({ error }: { error?: string }) {
   return <p className="text-sm text-rose-700">{error}</p>;
 }
 
-function WarningList({ warnings }: { warnings: ReturnType<typeof getBrandingWarnings> }) {
+function WarningList({
+  warnings,
+  locale,
+}: {
+  warnings: ReturnType<typeof getBrandingWarnings>;
+  locale: AppLocale;
+}) {
   if (warnings.length === 0) {
     return null;
   }
 
   return (
     <div className="admin-warning-banner">
-      <p className="font-medium">Contrast warning</p>
+      <p className="font-medium">{t(locale, "admin.branding.contrastWarning")}</p>
       <ul className="mt-2 grid gap-2">
         {warnings.map((warning) => (
           <li key={warning.id}>{warning.message}</li>
         ))}
       </ul>
       <p className="mt-2 text-current/90">
-        You can still save this branding. These warnings are guidance only.
+        {t(locale, "admin.branding.warningGuidance")}
       </p>
     </div>
   );
@@ -123,23 +131,32 @@ function WarningList({ warnings }: { warnings: ReturnType<typeof getBrandingWarn
 function SaveBrandingButton({
   isSaved,
   pending,
+  locale,
 }: {
   isSaved: boolean;
   pending: boolean;
+  locale: AppLocale;
 }) {
-  const buttonLabel = pending ? "Saving..." : isSaved ? "Saved" : "Save branding";
+  const buttonLabel = pending
+    ? t(locale, "admin.branding.saving")
+    : isSaved
+      ? t(locale, "admin.branding.saved")
+      : t(locale, "admin.branding.saveBranding");
+  const buttonState = pending ? "saving" : isSaved ? "saved" : "idle";
 
   return (
     <button
       type="submit"
       disabled={pending}
-      className={`relative inline-grid h-11 min-w-[11rem] place-items-center rounded-full px-6 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-70 ${
+      aria-busy={pending}
+      data-state={buttonState}
+      className={`relative inline-grid h-11 w-44 place-items-center rounded-full px-6 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-70 ${
         isSaved
           ? "bg-emerald-600 text-white hover:bg-emerald-600"
           : "bg-slate-900 text-white hover:bg-slate-800"
       }`}
     >
-      <span className="invisible">Save branding</span>
+      <span className="invisible">{t(locale, "admin.branding.saveBranding")}</span>
       <span className="absolute inset-0 flex items-center justify-center">{buttonLabel}</span>
     </button>
   );
@@ -149,26 +166,61 @@ function SaveBrandingStatus({
   isSaved,
   pending,
   errorMessage,
+  locale,
 }: {
   isSaved: boolean;
   pending: boolean;
   errorMessage?: string | null;
+  locale: AppLocale;
 }) {
   return (
     <p
       aria-live="polite"
-      className={`text-sm transition-colors ${
+      className={`min-h-5 max-w-[34rem] text-sm leading-5 transition-colors ${
         errorMessage ? "text-rose-700" : isSaved ? "text-emerald-700" : "text-muted"
       }`}
     >
       {errorMessage
         ? errorMessage
         : pending
-          ? "Saving branding changes..."
+          ? t(locale, "admin.branding.saving")
           : isSaved
-            ? "Saved. Public pages will use this branding on the next request."
-            : "Saving stays on this page, so your position and preview remain in place."}
+            ? t(locale, "admin.branding.saved")
+            : t(locale, "admin.branding.ready")}
     </p>
+  );
+}
+
+function AssetMetadata({
+  selectedFile,
+  persistedAsset,
+  locale,
+}: {
+  selectedFile: File | null;
+  persistedAsset: BrandingAssetPreview | null;
+  locale: AppLocale;
+}) {
+  return (
+    <div className="mt-3 min-h-10 text-sm leading-5 text-muted">
+      {selectedFile ? (
+        <>
+          <p className="font-medium text-slate-700">
+            {t(locale, "common.selectedReplacement")}
+          </p>
+          <p className="truncate">{selectedFile.name}</p>
+        </>
+      ) : persistedAsset ? (
+        <>
+          <p className="truncate font-medium text-slate-700">{persistedAsset.originalFilename}</p>
+          <p>{formatFileSize(persistedAsset.sizeBytes)}</p>
+        </>
+      ) : (
+        <>
+          <p className="font-medium text-slate-700">{t(locale, "common.noFileUploaded")}</p>
+          <p>{t(locale, "common.noReplacementSelected")}</p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -212,6 +264,7 @@ export default function BrandingForm({
   businessDescription,
   initialBranding,
   assets,
+  locale,
 }: BrandingFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [saveState, setSaveState] = useState<BrandingActionState>(() =>
@@ -262,7 +315,7 @@ export default function BrandingForm({
     secondaryColor,
     backgroundColor,
     textColor,
-  });
+  }, locale);
   const isDirty =
     primaryFont !== persistedBranding.primaryFont ||
     secondaryFont !== persistedBranding.secondaryFont ||
@@ -404,7 +457,7 @@ export default function BrandingForm({
       if (missingUploadedKinds.length > 0 || staleRemovedKinds.length > 0) {
         setSaveState(
           buildErrorState(
-            "Branding saved partially, but one or more asset updates did not stick yet. Your preview has been left in place so you can retry safely.",
+            t(locale, "actions.brandingPartialAssetError"),
             nextSavedBranding,
             nextSavedAssets,
           ),
@@ -428,7 +481,7 @@ export default function BrandingForm({
     } catch (error) {
       setSaveState(
         buildErrorState(
-          error instanceof Error ? error.message : "Unable to save branding.",
+          error instanceof Error ? error.message : t(locale, "actions.brandingSaveError"),
           persistedBranding,
           persistedAssets,
         ),
@@ -445,22 +498,24 @@ export default function BrandingForm({
       encType="multipart/form-data"
       className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] xl:items-start"
     >
+      <input type="hidden" name="locale" value={locale} />
       <section className="grid gap-5">
         <div className="admin-panel p-6">
           <div className="grid gap-2 border-b border-border pb-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-              Typography
+              {t(locale, "admin.branding.typography")}
             </p>
-            <h2 className="text-xl font-semibold text-slate-900">Public font selection</h2>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {t(locale, "admin.branding.publicFonts")}
+            </h2>
             <p className="max-w-2xl text-sm leading-6 text-muted">
-              Choose the fonts used on the customer-facing site. The admin editor stays on the
-              default admin typography.
+              {t(locale, "admin.branding.fontDescription")}
             </p>
           </div>
 
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium">
-              Primary font
+              {t(locale, "admin.branding.primaryFont")}
               <select
                 name="primaryFont"
                 value={primaryFont}
@@ -469,7 +524,7 @@ export default function BrandingForm({
                 }
                 className="admin-select"
               >
-                {getBrandFontOptionsByCategory().map((group) => (
+                {getBrandFontOptionsByCategory(locale).map((group) => (
                   <optgroup key={group.category} label={group.category}>
                     {group.options.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -483,7 +538,7 @@ export default function BrandingForm({
             </label>
 
             <label className="grid gap-2 text-sm font-medium">
-              Secondary font
+              {t(locale, "admin.branding.secondaryFont")}
               <select
                 name="secondaryFont"
                 value={secondaryFont}
@@ -492,7 +547,7 @@ export default function BrandingForm({
                 }
                 className="admin-select"
               >
-                {getBrandFontOptionsByCategory().map((group) => (
+                {getBrandFontOptionsByCategory(locale).map((group) => (
                   <optgroup key={group.category} label={group.category}>
                     {group.options.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -509,36 +564,39 @@ export default function BrandingForm({
 
         <div className="admin-panel p-6">
           <div className="grid gap-2 border-b border-border pb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Color</p>
-            <h2 className="text-xl font-semibold text-slate-900">Theme colors</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              {t(locale, "admin.branding.color")}
+            </p>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {t(locale, "admin.branding.themeColors")}
+            </h2>
             <p className="max-w-2xl text-sm leading-6 text-muted">
-              These values drive the public theme tokens. If a combination looks risky, the editor
-              will warn you but it will still allow saving.
+              {t(locale, "admin.branding.colorDescription")}
             </p>
           </div>
 
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             {[
               {
-                label: "Primary color",
+                label: t(locale, "admin.branding.primaryColor"),
                 name: "primaryColor",
                 value: primaryColor,
                 setValue: setPrimaryColor,
               },
               {
-                label: "Secondary color",
+                label: t(locale, "admin.branding.secondaryColor"),
                 name: "secondaryColor",
                 value: secondaryColor,
                 setValue: setSecondaryColor,
               },
               {
-                label: "Background color",
+                label: t(locale, "admin.branding.backgroundColor"),
                 name: "backgroundColor",
                 value: backgroundColor,
                 setValue: setBackgroundColor,
               },
               {
-                label: "Text color",
+                label: t(locale, "admin.branding.textColor"),
                 name: "textColor",
                 value: textColor,
                 setValue: setTextColor,
@@ -566,16 +624,20 @@ export default function BrandingForm({
           </div>
 
           <div className="mt-5">
-            <WarningList warnings={contrastWarnings} />
+            <WarningList warnings={contrastWarnings} locale={locale} />
           </div>
         </div>
 
         <div className="admin-panel p-6">
           <div className="grid gap-2 border-b border-border pb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Assets</p>
-            <h2 className="text-xl font-semibold text-slate-900">Logos and favicon</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              {t(locale, "admin.branding.assets")}
+            </p>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {t(locale, "admin.branding.logosFavicon")}
+            </h2>
             <p className="max-w-2xl text-sm leading-6 text-muted">
-              Uploaded files are stored with the business record and served back through the app.
+              {t(locale, "admin.branding.assetsDescription")}
             </p>
           </div>
 
@@ -589,6 +651,7 @@ export default function BrandingForm({
                 persistedAssets,
               );
               const persistedAsset = persistedAssets[assetConfig.kind];
+              const fileInputId = `branding-${assetConfig.kind.toLowerCase()}-upload`;
 
               return (
                 <div key={assetConfig.kind} className="admin-muted-panel p-4">
@@ -601,8 +664,8 @@ export default function BrandingForm({
                         {assetConfig.description}
                       </h3>
                       <p className="mt-2 text-sm leading-6 text-muted">
-                        Allowed: {assetConfig.accept}. Max size:{" "}
-                        {formatFileSize(assetConfig.maxSizeBytes)}.
+                        {t(locale, "common.allowed")}: {assetConfig.accept}.{" "}
+                        {t(locale, "common.maxSize")}: {formatFileSize(assetConfig.maxSizeBytes)}.
                       </p>
                     </div>
 
@@ -619,55 +682,65 @@ export default function BrandingForm({
                         </div>
                       ) : (
                         <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-border bg-slate-50 text-sm text-muted">
-                          No active asset
+                          {t(locale, "common.noActiveAsset")}
                         </div>
                       )}
 
-                      <div className="mt-3 text-sm text-muted">
-                        {selectedFile ? (
-                          <p>Selected: {selectedFile.name}</p>
-                        ) : persistedAsset ? (
-                          <>
-                            <p>{persistedAsset.originalFilename}</p>
-                            <p>{formatFileSize(persistedAsset.sizeBytes)}</p>
-                          </>
-                        ) : (
-                          <p>No file uploaded yet.</p>
-                        )}
-                      </div>
+                      <AssetMetadata
+                        selectedFile={selectedFile}
+                        persistedAsset={persistedAsset}
+                        locale={locale}
+                      />
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                    <label className="grid gap-2 text-sm font-medium">
-                      Upload replacement
+                  <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(13rem,16rem)] md:items-start">
+                    <div className="grid gap-2 text-sm font-medium">
+                      <span>{t(locale, "common.uploadReplacement")}</span>
                       <input
                         key={`${assetConfig.kind}-${fileInputVersions[assetConfig.kind]}`}
+                        id={fileInputId}
                         type="file"
                         name={getBrandAssetFieldName(assetConfig.kind)}
                         accept={assetConfig.accept}
                         onChange={(event) =>
                           handleFileChange(assetConfig.kind, event.target.files?.[0] ?? null)
                         }
-                        className="admin-input px-3 py-2.5 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:font-semibold file:text-white"
+                        className="admin-file-input sr-only"
                       />
+                      <label htmlFor={fileInputId} className="admin-file-picker">
+                        <span className="admin-file-picker-action">
+                          {t(locale, "common.chooseFile")}
+                        </span>
+                        <span className="admin-file-picker-name">
+                          {selectedFile
+                            ? selectedFile.name
+                            : t(locale, "common.noReplacementSelected")}
+                        </span>
+                      </label>
                       <FormErrorText
                         error={saveState.fieldErrors[getBrandAssetFieldName(assetConfig.kind)]}
                       />
-                    </label>
+                    </div>
 
                     {persistedAsset ? (
-                      <label className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          name={getBrandAssetRemoveFieldName(assetConfig.kind)}
-                          checked={removeState[assetConfig.kind]}
-                          onChange={(event) =>
-                            toggleRemove(assetConfig.kind, event.target.checked)
-                          }
-                          className="admin-checkbox"
-                        />
-                        Remove current asset
+                      <label className="grid gap-2 text-sm font-medium">
+                        <span>{t(locale, "common.removeAsset")}</span>
+                        <span
+                          className="admin-remove-asset-toggle"
+                          data-checked={removeState[assetConfig.kind]}
+                        >
+                          <input
+                            type="checkbox"
+                            name={getBrandAssetRemoveFieldName(assetConfig.kind)}
+                            checked={removeState[assetConfig.kind]}
+                            onChange={(event) =>
+                              toggleRemove(assetConfig.kind, event.target.checked)
+                            }
+                            className="admin-checkbox shrink-0"
+                          />
+                          <span className="truncate">{t(locale, "common.removeCurrent")}</span>
+                        </span>
                       </label>
                     ) : null}
                   </div>
@@ -679,11 +752,12 @@ export default function BrandingForm({
 
         <div className="admin-panel p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <SaveBrandingButton isSaved={isSaved} pending={isSubmitting} />
+            <SaveBrandingButton isSaved={isSaved} pending={isSubmitting} locale={locale} />
             <SaveBrandingStatus
               isSaved={isSaved}
               pending={isSubmitting}
               errorMessage={saveState.status === "error" ? saveState.message : undefined}
+              locale={locale}
             />
           </div>
         </div>
@@ -691,10 +765,14 @@ export default function BrandingForm({
 
       <aside className="xl:sticky xl:top-6">
         <div className="admin-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Preview</p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-900">Public site preview</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+            {t(locale, "common.preview")}
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-900">
+            {t(locale, "admin.branding.publicPreview")}
+          </h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This preview uses the same branding tokens and logo rules as the public layout.
+            {t(locale, "admin.branding.previewDescription")}
           </p>
 
           <div
@@ -715,16 +793,18 @@ export default function BrandingForm({
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold uppercase tracking-[0.28em] text-muted">
-                      Online appointments
+                      {t(locale, "common.onlineAppointments")}
                     </p>
-                    <p className="truncate text-sm text-muted">Public site header</p>
+                    <p className="truncate text-sm text-muted">
+                      {t(locale, "admin.branding.publicHeader")}
+                    </p>
                   </div>
                 </div>
 
                 {faviconUrl ? (
                   <img
                     src={faviconUrl}
-                    alt="Favicon preview"
+                    alt={`${t(locale, "branding.assets.favicon.label")} ${t(locale, "common.preview")}`}
                     className="h-8 w-8 rounded-lg border border-border bg-card p-1"
                   />
                 ) : null}
@@ -734,36 +814,40 @@ export default function BrandingForm({
             <div className="grid gap-4 px-5 py-5">
               <section className="brand-panel-shadow rounded-[1.5rem] border border-border bg-card/95 p-5">
                 <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
-                  Hero
+                  {t(locale, "admin.branding.hero")}
                 </p>
                 <h3 className="mt-3 font-display text-4xl leading-[0.95]">
-                  Calm booking for clients. Clear scheduling for the team.
+                  {t(locale, "admin.branding.previewHeadline")}
                 </h3>
                 <p className="mt-4 text-sm leading-7 text-muted">
                   {businessDescription ??
-                    "Preview how your fonts, palette, and logos work together on the public site."}
+                    t(locale, "admin.branding.previewFallbackDescription")}
                 </p>
                 <div className="mt-5 flex gap-3">
                   <span className="brand-accent-fill rounded-full px-4 py-2 text-sm font-semibold">
-                    Book now
+                    {t(locale, "admin.branding.bookNow")}
                   </span>
                   <span className="rounded-full border border-border px-4 py-2 text-sm font-semibold">
-                    Explore services
+                    {t(locale, "admin.branding.exploreServices")}
                   </span>
                 </div>
               </section>
 
               <section className="brand-accent-shadow rounded-[1.5rem] border border-border bg-card/92 p-5">
-                <p className="text-sm uppercase tracking-[0.3em] text-muted">Service card</p>
+                <p className="text-sm uppercase tracking-[0.3em] text-muted">
+                  {t(locale, "admin.branding.serviceCard")}
+                </p>
                 <div className="mt-3 flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-display text-3xl">Signature service</p>
+                    <p className="font-display text-3xl">
+                      {t(locale, "admin.branding.signatureService")}
+                    </p>
                     <p className="mt-2 text-sm leading-7 text-muted">
-                      Preview how brand colors flow through buttons, borders, and supporting copy.
+                      {t(locale, "admin.branding.servicePreviewDescription")}
                     </p>
                   </div>
                   <span className="rounded-full border border-accent px-3 py-2 text-sm font-semibold text-accent">
-                    Accent
+                    {t(locale, "admin.branding.accent")}
                   </span>
                 </div>
               </section>
@@ -782,7 +866,7 @@ export default function BrandingForm({
                 </p>
               )}
               <p className="brand-on-accent-muted mt-3 text-sm leading-7">
-                Dark-surface preview for footer and accent-heavy public sections.
+                {t(locale, "admin.branding.footerPreview")}
               </p>
             </div>
           </div>
