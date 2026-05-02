@@ -17,14 +17,17 @@ type LanguageSettingsFormProps = {
 function SaveLanguageButton({
   locale,
   isSaved,
+  isTransitioning,
   savedMessage,
 }: {
   locale: AppLocale;
   isSaved: boolean;
+  isTransitioning: boolean;
   savedMessage: string | null;
 }) {
   const { pending } = useFormStatus();
-  const label = pending
+  const isLoading = pending || isTransitioning;
+  const label = isLoading
     ? t(locale, "common.saving")
     : isSaved && savedMessage
       ? savedMessage
@@ -33,14 +36,23 @@ function SaveLanguageButton({
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={isLoading}
+      aria-busy={isLoading}
       className={`inline-grid h-11 w-44 place-items-center rounded-full px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
         isSaved
           ? "bg-emerald-600 text-white hover:bg-emerald-600"
           : "bg-slate-900 text-white hover:bg-slate-800"
-      }`}
+        }`}
     >
-      <span className="truncate">{label}</span>
+      <span className="flex min-w-0 items-center justify-center gap-2">
+        {isLoading ? (
+          <span
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/35 border-t-white"
+          />
+        ) : null}
+        <span className="truncate">{label}</span>
+      </span>
     </button>
   );
 }
@@ -52,11 +64,15 @@ export default function LanguageSettingsForm({
   const router = useRouter();
   const [selectedLocale, setSelectedLocale] = useState(defaultLocale);
   const [savedButtonMessage, setSavedButtonMessage] = useState<string | null>(null);
+  const [isLocaleTransitioning, setIsLocaleTransitioning] = useState(false);
   const savedResetTimerRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
   const [state, action] = useActionState(
     updateDefaultLocaleAction,
     initialAdminEntityActionState,
   );
+  const handledSuccessStateRef = useRef<typeof state | null>(null);
+  const transitionResultIdRef = useRef(0);
 
   useEffect(() => {
     setSelectedLocale(defaultLocale);
@@ -64,6 +80,8 @@ export default function LanguageSettingsForm({
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
+
       if (savedResetTimerRef.current) {
         window.clearTimeout(savedResetTimerRef.current);
       }
@@ -72,18 +90,55 @@ export default function LanguageSettingsForm({
 
   useEffect(() => {
     if (state.status === "success" && state.message) {
-      setSavedButtonMessage(state.message);
+      if (handledSuccessStateRef.current === state) {
+        return;
+      }
+
+      handledSuccessStateRef.current = state;
+      transitionResultIdRef.current += 1;
+      const currentTransitionResultId = transitionResultIdRef.current;
 
       if (savedResetTimerRef.current) {
         window.clearTimeout(savedResetTimerRef.current);
+        savedResetTimerRef.current = null;
       }
 
-      savedResetTimerRef.current = window.setTimeout(() => {
-        setSavedButtonMessage(null);
-        savedResetTimerRef.current = null;
-      }, 2000);
+      setSavedButtonMessage(null);
+      setIsLocaleTransitioning(true);
 
-      refreshWithLocaleTransition(() => router.refresh());
+      refreshWithLocaleTransition(() => router.refresh(), {
+        onBeforeEnter: () => {
+          if (
+            !isMountedRef.current ||
+            currentTransitionResultId !== transitionResultIdRef.current
+          ) {
+            return;
+          }
+
+          setIsLocaleTransitioning(false);
+          setSavedButtonMessage(state.message);
+        },
+        onComplete: () => {
+          if (
+            !isMountedRef.current ||
+            currentTransitionResultId !== transitionResultIdRef.current
+          ) {
+            return;
+          }
+
+          savedResetTimerRef.current = window.setTimeout(() => {
+            if (!isMountedRef.current) {
+              return;
+            }
+
+            setSavedButtonMessage(null);
+            savedResetTimerRef.current = null;
+          }, 2000);
+        },
+      });
+    } else if (state.status === "error") {
+      handledSuccessStateRef.current = null;
+      setIsLocaleTransitioning(false);
     }
   }, [router, state]);
 
@@ -120,7 +175,9 @@ export default function LanguageSettingsForm({
                 savedResetTimerRef.current = null;
               }
 
+              transitionResultIdRef.current += 1;
               setSavedButtonMessage(null);
+              setIsLocaleTransitioning(false);
               setSelectedLocale(event.target.value as AppLocale);
             }}
             className="admin-select admin-select-with-trailing-icon appearance-none text-base font-semibold"
@@ -163,6 +220,7 @@ export default function LanguageSettingsForm({
         <SaveLanguageButton
           locale={locale}
           isSaved={!!savedButtonMessage}
+          isTransitioning={isLocaleTransitioning}
           savedMessage={savedButtonMessage}
         />
       </div>

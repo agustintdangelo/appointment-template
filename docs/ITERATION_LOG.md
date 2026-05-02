@@ -885,6 +885,7 @@ Date/time: 2026-05-01 section-based locale transition polish
 - stabilized translated controls with fixed/minimum widths on language selectors, admin navigation, key CTAs, booking auth buttons, and public/admin cards where text length varies
 - fixed the public language dropdown stacking so it opens above the following page content instead of being clipped behind hero sections
 - slowed the language transition enter phase so translated sections fade back in more smoothly
+- changed the admin language save button flow so it stays in a loading state through save and refresh, then enters the fade-in already rendered in the green saved state
 - documented the transition wrapper, `data-locale-section` attributes, reduced-motion behavior, and layout-stabilization conventions
 
 ### Files/modules affected

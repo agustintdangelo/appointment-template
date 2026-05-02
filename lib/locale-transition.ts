@@ -11,6 +11,11 @@ let exitTimer: number | undefined;
 let holdTimer: number | undefined;
 let cleanupTimer: number | undefined;
 
+type LocaleTransitionOptions = {
+  onBeforeEnter?: () => void;
+  onComplete?: () => void;
+};
+
 function clearLocaleTransitionTimers() {
   if (exitTimer) {
     window.clearTimeout(exitTimer);
@@ -54,7 +59,10 @@ function clearLocaleTransitionState() {
   document.documentElement.removeAttribute(LOCALE_TRANSITION_ATTRIBUTE);
 }
 
-export function refreshWithLocaleTransition(refresh: () => void) {
+export function refreshWithLocaleTransition(
+  refresh: () => void,
+  options: LocaleTransitionOptions = {},
+) {
   const canAnimate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   clearLocaleTransitionTimers();
@@ -63,6 +71,8 @@ export function refreshWithLocaleTransition(refresh: () => void) {
   if (!canAnimate) {
     clearLocaleTransitionState();
     refresh();
+    options.onBeforeEnter?.();
+    options.onComplete?.();
     return;
   }
 
@@ -83,15 +93,24 @@ export function refreshWithLocaleTransition(refresh: () => void) {
         return;
       }
 
-      setLocaleTransitionState("entering");
+      options.onBeforeEnter?.();
 
-      cleanupTimer = window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         if (currentTransitionId !== transitionId) {
           return;
         }
 
-        clearLocaleTransitionState();
-      }, ENTER_DURATION_MS + maxSectionDelay + 80);
+        setLocaleTransitionState("entering");
+
+        cleanupTimer = window.setTimeout(() => {
+          if (currentTransitionId !== transitionId) {
+            return;
+          }
+
+          clearLocaleTransitionState();
+          options.onComplete?.();
+        }, ENTER_DURATION_MS + maxSectionDelay + 80);
+      });
     }, REFRESH_HOLD_MS);
   }, EXIT_DURATION_MS + maxSectionDelay);
 }
