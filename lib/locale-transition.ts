@@ -1,12 +1,19 @@
-let activeOverlay: HTMLDivElement | null = null;
+const LOCALE_TRANSITION_ATTRIBUTE = "data-locale-transition";
+const LOCALE_SECTION_SELECTOR = "[data-locale-section]";
+const EXIT_DURATION_MS = 220;
+const ENTER_DURATION_MS = 380;
+const STAGGER_DURATION_MS = 36;
+const MAX_STAGGER_ORDER = 5;
+const REFRESH_HOLD_MS = 120;
+
 let transitionId = 0;
-let enterTimer: number | undefined;
+let exitTimer: number | undefined;
 let holdTimer: number | undefined;
 let cleanupTimer: number | undefined;
 
 function clearLocaleTransitionTimers() {
-  if (enterTimer) {
-    window.clearTimeout(enterTimer);
+  if (exitTimer) {
+    window.clearTimeout(exitTimer);
   }
 
   if (holdTimer) {
@@ -18,16 +25,33 @@ function clearLocaleTransitionTimers() {
   }
 }
 
-function createLocaleOverlay() {
-  activeOverlay?.remove();
+function getSectionOrder(section: Element) {
+  const rawOrder = section.getAttribute("data-locale-section-order");
+  const parsedOrder = Number(rawOrder);
 
-  const overlay = document.createElement("div");
-  overlay.className = "locale-refresh-curtain";
-  overlay.setAttribute("aria-hidden", "true");
-  document.body.appendChild(overlay);
-  activeOverlay = overlay;
+  if (!Number.isFinite(parsedOrder)) {
+    return 0;
+  }
 
-  return overlay;
+  return Math.max(0, Math.min(Math.round(parsedOrder), MAX_STAGGER_ORDER));
+}
+
+function getMaxSectionDelay() {
+  const sections = Array.from(document.querySelectorAll(LOCALE_SECTION_SELECTOR));
+  const maxOrder = sections.reduce(
+    (currentMaxOrder, section) => Math.max(currentMaxOrder, getSectionOrder(section)),
+    0,
+  );
+
+  return maxOrder * STAGGER_DURATION_MS;
+}
+
+function setLocaleTransitionState(state: "exiting" | "entering") {
+  document.documentElement.setAttribute(LOCALE_TRANSITION_ATTRIBUTE, state);
+}
+
+function clearLocaleTransitionState() {
+  document.documentElement.removeAttribute(LOCALE_TRANSITION_ATTRIBUTE);
 }
 
 export function refreshWithLocaleTransition(refresh: () => void) {
@@ -37,45 +61,37 @@ export function refreshWithLocaleTransition(refresh: () => void) {
   transitionId += 1;
 
   if (!canAnimate) {
-    activeOverlay?.remove();
-    activeOverlay = null;
+    clearLocaleTransitionState();
     refresh();
     return;
   }
 
   const currentTransitionId = transitionId;
-  const overlay = createLocaleOverlay();
+  const maxSectionDelay = getMaxSectionDelay();
 
-  window.requestAnimationFrame(() => {
+  setLocaleTransitionState("exiting");
+
+  exitTimer = window.setTimeout(() => {
     if (currentTransitionId !== transitionId) {
       return;
     }
 
-    overlay.dataset.state = "visible";
+    refresh();
 
-    enterTimer = window.setTimeout(() => {
+    holdTimer = window.setTimeout(() => {
       if (currentTransitionId !== transitionId) {
         return;
       }
 
-      refresh();
+      setLocaleTransitionState("entering");
 
-      holdTimer = window.setTimeout(() => {
+      cleanupTimer = window.setTimeout(() => {
         if (currentTransitionId !== transitionId) {
           return;
         }
 
-        overlay.dataset.state = "hidden";
-
-        cleanupTimer = window.setTimeout(() => {
-          if (currentTransitionId !== transitionId) {
-            return;
-          }
-
-          overlay.remove();
-          activeOverlay = null;
-        }, 360);
-      }, 620);
-    }, 260);
-  });
+        clearLocaleTransitionState();
+      }, ENTER_DURATION_MS + maxSectionDelay + 80);
+    }, REFRESH_HOLD_MS);
+  }, EXIT_DURATION_MS + maxSectionDelay);
 }

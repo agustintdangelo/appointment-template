@@ -74,6 +74,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - the configured default language applies to the public booking experience and the admin workspace
 - public visitors can switch language from the public selector; that choice is stored for their browser and does not change the admin-configured default
 - unsupported or missing locale values fall back to Spanish
+- language switches use a subtle section-by-section crossfade so translated text changes do not feel abrupt across the public site or admin workspace
 
 ## Out of scope for MVP
 - payments

@@ -216,7 +216,7 @@ export default function AdminListHeader({
   ];
 
   return (
-    <section className="admin-panel p-6">
+    <section data-locale-section="" data-locale-section-order="2" className="admin-panel p-6">
       <div className="grid gap-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(18rem,1fr)_minmax(24rem,1fr)] xl:items-end">
           <label className="grid gap-2 text-sm font-medium">

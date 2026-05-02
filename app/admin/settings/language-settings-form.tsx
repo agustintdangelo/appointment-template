@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 
@@ -14,16 +14,33 @@ type LanguageSettingsFormProps = {
   defaultLocale: AppLocale;
 };
 
-function SaveLanguageButton({ locale }: { locale: AppLocale }) {
+function SaveLanguageButton({
+  locale,
+  isSaved,
+  savedMessage,
+}: {
+  locale: AppLocale;
+  isSaved: boolean;
+  savedMessage: string | null;
+}) {
   const { pending } = useFormStatus();
+  const label = pending
+    ? t(locale, "common.saving")
+    : isSaved && savedMessage
+      ? savedMessage
+      : t(locale, "admin.settings.saveLanguage");
 
   return (
     <button
       type="submit"
       disabled={pending}
-      className="admin-button-primary disabled:cursor-not-allowed disabled:opacity-60"
+      className={`inline-grid h-11 w-44 place-items-center rounded-full px-5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+        isSaved
+          ? "bg-emerald-600 text-white hover:bg-emerald-600"
+          : "bg-slate-900 text-white hover:bg-slate-800"
+      }`}
     >
-      {pending ? t(locale, "common.saving") : t(locale, "admin.settings.saveLanguage")}
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -34,6 +51,8 @@ export default function LanguageSettingsForm({
 }: LanguageSettingsFormProps) {
   const router = useRouter();
   const [selectedLocale, setSelectedLocale] = useState(defaultLocale);
+  const [savedButtonMessage, setSavedButtonMessage] = useState<string | null>(null);
+  const savedResetTimerRef = useRef<number | null>(null);
   const [state, action] = useActionState(
     updateDefaultLocaleAction,
     initialAdminEntityActionState,
@@ -44,13 +63,37 @@ export default function LanguageSettingsForm({
   }, [defaultLocale]);
 
   useEffect(() => {
-    if (state.status === "success") {
+    return () => {
+      if (savedResetTimerRef.current) {
+        window.clearTimeout(savedResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state.status === "success" && state.message) {
+      setSavedButtonMessage(state.message);
+
+      if (savedResetTimerRef.current) {
+        window.clearTimeout(savedResetTimerRef.current);
+      }
+
+      savedResetTimerRef.current = window.setTimeout(() => {
+        setSavedButtonMessage(null);
+        savedResetTimerRef.current = null;
+      }, 2000);
+
       refreshWithLocaleTransition(() => router.refresh());
     }
   }, [router, state]);
 
   return (
-    <form action={action} className="admin-panel grid gap-5 p-6">
+    <form
+      action={action}
+      data-locale-section=""
+      data-locale-section-order="2"
+      className="admin-panel grid gap-5 p-6"
+    >
       <input type="hidden" name="locale" value={locale} />
 
       <div className="grid gap-2 border-b border-border pb-4">
@@ -71,7 +114,15 @@ export default function LanguageSettingsForm({
           <select
             name="defaultLocale"
             value={selectedLocale}
-            onChange={(event) => setSelectedLocale(event.target.value as AppLocale)}
+            onChange={(event) => {
+              if (savedResetTimerRef.current) {
+                window.clearTimeout(savedResetTimerRef.current);
+                savedResetTimerRef.current = null;
+              }
+
+              setSavedButtonMessage(null);
+              setSelectedLocale(event.target.value as AppLocale);
+            }}
             className="admin-select admin-select-with-trailing-icon appearance-none text-base font-semibold"
           >
             {getSupportedLocaleOptions().map((option) => (
@@ -108,12 +159,12 @@ export default function LanguageSettingsForm({
         <div className="admin-error-banner">{state.message}</div>
       ) : null}
 
-      {state.status === "success" && state.message ? (
-        <div className="admin-success-banner">{state.message}</div>
-      ) : null}
-
       <div>
-        <SaveLanguageButton locale={locale} />
+        <SaveLanguageButton
+          locale={locale}
+          isSaved={!!savedButtonMessage}
+          savedMessage={savedButtonMessage}
+        />
       </div>
     </form>
   );

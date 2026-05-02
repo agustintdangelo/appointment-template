@@ -2,6 +2,7 @@ import {
   AdminEmptyState,
   AdminPageIntro,
 } from "@/app/admin/admin-ui";
+import LocalizedSection from "@/app/components/localized-section";
 import { formatAppointmentDateTime } from "@/lib/format";
 import { formatAppointmentBookingType, formatAppointmentStatus, t } from "@/lib/i18n";
 import { getBusinessLocale } from "@/lib/locale-server";
@@ -46,7 +47,7 @@ export default async function AdminAppointmentsPage() {
         description={t(locale, "admin.appointments.description")}
       />
 
-      <section className="admin-list-shell">
+      <LocalizedSection as="section" order={2} className="admin-list-shell">
         <div className="grid grid-cols-[1.15fr_0.9fr_0.9fr_0.6fr] gap-4 border-b border-border px-6 py-4 text-xs font-semibold uppercase tracking-[0.3em] text-muted">
           <p>{t(locale, "common.customer")}</p>
           <p>{t(locale, "common.appointment")}</p>
@@ -113,7 +114,7 @@ export default async function AdminAppointmentsPage() {
             ))}
           </div>
         )}
-      </section>
+      </LocalizedSection>
     </>
   );
 }

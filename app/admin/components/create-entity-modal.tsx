@@ -66,6 +66,8 @@ export default function CreateEntityModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
+        data-locale-section=""
+        data-locale-section-order="2"
         className="admin-panel relative z-10 flex max-h-[min(92vh,58rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[1.25rem] bg-white/98"
         onClick={(event) => event.stopPropagation()}
       >

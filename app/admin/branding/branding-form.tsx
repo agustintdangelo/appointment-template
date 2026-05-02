@@ -499,7 +499,7 @@ export default function BrandingForm({
       className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] xl:items-start"
     >
       <input type="hidden" name="locale" value={locale} />
-      <section className="grid gap-5">
+      <section data-locale-section="" data-locale-section-order="2" className="grid gap-5">
         <div className="admin-panel p-6">
           <div className="grid gap-2 border-b border-border pb-4">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
@@ -763,7 +763,7 @@ export default function BrandingForm({
         </div>
       </section>
 
-      <aside className="xl:sticky xl:top-6">
+      <aside data-locale-section="" data-locale-section-order="3" className="xl:sticky xl:top-6">
         <div className="admin-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
             {t(locale, "common.preview")}

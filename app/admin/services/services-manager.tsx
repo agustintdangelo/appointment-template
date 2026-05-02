@@ -525,7 +525,11 @@ function EmptyResults({
   onAction: () => void;
 }) {
   return (
-    <div className="admin-card-dashed px-6 py-10 text-center">
+    <div
+      data-locale-section=""
+      data-locale-section-order="3"
+      className="admin-card-dashed px-6 py-10 text-center"
+    >
       <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
       <p className="mt-3 text-sm leading-7 text-muted">{description}</p>
       <button

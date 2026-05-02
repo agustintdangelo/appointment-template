@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import LocalizedSection from "@/app/components/localized-section";
 import { adminNavItems } from "@/lib/admin";
 import { DEFAULT_LOCALE, t, type AppLocale } from "@/lib/i18n";
 
@@ -62,11 +63,13 @@ export function AdminNotice({ notice }: { notice: AdminNoticeState }) {
   }
 
   return (
-    <div
+    <LocalizedSection
+      as="div"
+      order={1}
       className={notice.tone === "error" ? "admin-error-banner" : "admin-success-banner"}
     >
       {notice.message}
-    </div>
+    </LocalizedSection>
   );
 }
 
@@ -82,7 +85,7 @@ export function AdminPageIntro({
   actions?: ReactNode;
 }) {
   return (
-    <section className="admin-panel p-6">
+    <LocalizedSection as="section" order={1} className="admin-panel p-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
@@ -93,7 +96,7 @@ export function AdminPageIntro({
         </div>
         {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
       </div>
-    </section>
+    </LocalizedSection>
   );
 }
 
@@ -105,10 +108,10 @@ export function AdminEmptyState({
   description: string;
 }) {
   return (
-    <div className="admin-panel px-6 py-10 text-center">
+    <LocalizedSection as="div" order={1} className="admin-panel px-6 py-10 text-center">
       <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
       <p className="mt-3 text-sm leading-7 text-muted">{description}</p>
-    </div>
+    </LocalizedSection>
   );
 }
 
@@ -117,7 +120,7 @@ export function AdminNav({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
     <nav className="flex flex-wrap gap-3">
       <Link
         href="/"
-        className="admin-button-secondary gap-2 text-sm font-medium"
+        className="admin-button-secondary min-w-[9.5rem] gap-2 text-sm font-medium"
       >
         <svg
           aria-hidden="true"
@@ -138,7 +141,7 @@ export function AdminNav({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
         <Link
           key={item.href}
           href={item.href}
-          className="admin-button-secondary text-sm font-medium"
+          className="admin-button-secondary min-w-[7.5rem] text-sm font-medium"
         >
           {t(locale, item.labelKey)}
         </Link>

@@ -731,7 +731,8 @@ Date/time: 2026-04-30 localization settings polish
 - replaced the admin default-language select arrow with an inset custom icon so it no longer appears pushed against the field edge
 - made the default-language selector controlled so the selected option stays on the newly saved language while the admin workspace refreshes
 - replaced the public language selector with a compact globe/code menu so it takes less visual priority in the public header
-- added a forced locale refresh curtain that covers the UI before refresh, holds through the text swap, then fades out without shifting page layout
+- replaced the locale wipe with a single fixed fade curtain that picks up the current page colors, covers the UI before refresh, holds through the text swap, then fades out without shifting page layout
+- moved the successful language-save feedback into the save button itself, turning it green for two seconds instead of showing a success banner above the button
 
 ### Files/modules affected
 - `app/admin/settings/language-settings-form.tsx`
@@ -746,7 +747,8 @@ Date/time: 2026-04-30 localization settings polish
 ### Decisions made
 - kept the visual fix local to the existing admin select pattern instead of introducing a new form component
 - avoided the browser View Transitions API because its root snapshots made repeated language refreshes feel jumpy
-- kept the transition as an opaque fixed-curtain fade with a reduced-motion fallback so text reflow is hidden underneath
+- kept the transition as a simple fixed overlay fade with a reduced-motion fallback so text reflow is hidden underneath without using a blank white screen, directional wipe, pulse, or page transform
+- kept the language save button at a fixed width so the normal, saving, and saved labels do not resize the form
 
 ### Open issues / risks
 - the transition deliberately stays subtle so language changes do not obscure the actual content update
@@ -871,3 +873,46 @@ Date/time: 2026-04-30 optional customer authentication foundation
 
 ### Next recommended step
 - add confirmation delivery integration and a secure customer appointment-management link flow in a later slice
+
+## Iteration 23
+Date/time: 2026-05-01 section-based locale transition polish
+
+### What changed
+- replaced the full-screen locale curtain with a section-based crossfade coordinated by `lib/locale-transition.ts`
+- added `app/components/localized-section.tsx` so server-rendered public and admin sections can opt into the language transition consistently
+- marked public header, footer, home, services, booking, confirmation, admin shell, admin settings, admin lists, branding panels, calendar surfaces, and modals as localized transition sections
+- added subtle stagger ordering across major sections so language changes fade out and back in by area instead of flashing the whole page
+- stabilized translated controls with fixed/minimum widths on language selectors, admin navigation, key CTAs, booking auth buttons, and public/admin cards where text length varies
+- fixed the public language dropdown stacking so it opens above the following page content instead of being clipped behind hero sections
+- slowed the language transition enter phase so translated sections fade back in more smoothly
+- documented the transition wrapper, `data-locale-section` attributes, reduced-motion behavior, and layout-stabilization conventions
+
+### Files/modules affected
+- `app/components/localized-section.tsx`
+- `lib/locale-transition.ts`
+- `app/globals.css`
+- `app/components/language-selector.tsx`
+- `app/(public)/`
+- `app/admin/`
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ADAPTATION_GUIDE.md`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- kept the existing `refreshWithLocaleTransition(() => router.refresh())` API so public and admin language changes share one path
+- used `html[data-locale-transition]` plus `data-locale-section` instead of a blocking overlay so the transition feels structural rather than like a page flash
+- used opacity, a small blur, and a 0.2rem vertical shift with short stagger delays for a calm transition
+- kept transform, filter, and will-change out of the idle localized-section state so dropdowns and menus are not trapped in unnecessary stacking contexts
+- skipped animation entirely for reduced-motion users
+- used sensible minimum sizes and shared helper classes instead of fixed heights everywhere
+
+### Open issues / risks
+- database-authored business content such as service names still changes only when the business data changes, not through the translation dictionary
+- very long future translations may still need targeted layout tuning in specific cards or tables
+
+### Next recommended step
+- add a small browser smoke test that switches languages on `/`, `/book`, and `/admin/settings` and checks for visible section transition markers without layout overflow

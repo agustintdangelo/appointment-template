@@ -73,3 +73,11 @@ Keep:
 - add the translated dictionary in `lib/i18n.ts`
 - keep all Spanish keys populated because missing translations fall back to Spanish
 - once supported, the locale will appear in selectors through the centralized locale options
+
+## Localized UI transition conventions
+- wrap new server-rendered major sections with `app/components/localized-section.tsx`
+- in client components, add `data-locale-section=""` plus `data-locale-section-order="0"` through `"5"` to major panels that should crossfade during language refresh
+- keep stagger orders subtle: header or intro first, main content next, secondary panels last
+- use `localized-action` or sensible min-width/min-height utilities for translated buttons, nav items, cards, badges, and selector controls that would otherwise resize aggressively
+- do not add fixed heights only to hide translation changes; prefer stable line-height, minimum sizes, responsive grids, and text wrapping
+- reduced-motion behavior is handled globally, so new sections should not add separate language-switch animations

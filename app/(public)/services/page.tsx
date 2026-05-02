@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import LocalizedSection from "@/app/components/localized-section";
 import { formatMoney, formatServiceTiming } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
@@ -24,7 +25,11 @@ export default async function ServicesPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 py-10 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-border bg-card/95 p-8">
+      <LocalizedSection
+        as="section"
+        order={1}
+        className="rounded-[2rem] border border-border bg-card/95 p-8"
+      >
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
           {t(locale, "public.services.eyebrow")}
         </p>
@@ -32,13 +37,13 @@ export default async function ServicesPage() {
         <p className="mt-4 max-w-3xl text-lg leading-8 text-muted">
           {t(locale, "public.services.description")}
         </p>
-      </section>
+      </LocalizedSection>
 
-      <section className="grid gap-5 lg:grid-cols-3">
+      <LocalizedSection as="section" order={2} className="grid gap-5 lg:grid-cols-3">
         {business.services.map((service) => (
           <article
             key={service.id}
-            className="brand-card-shadow rounded-[1.75rem] border border-border bg-surface/95 p-6"
+            className="brand-card-shadow min-h-[20rem] rounded-[1.75rem] border border-border bg-surface/95 p-6"
           >
             <p className="text-sm uppercase tracking-[0.3em] text-muted">
               {t(locale, "common.service")}
@@ -57,28 +62,32 @@ export default async function ServicesPage() {
             </dl>
             <Link
               href={`/book?service=${service.slug}`}
-              className="brand-accent-fill mt-6 inline-flex rounded-full px-4 py-2 text-sm font-semibold transition"
+              className="brand-accent-fill localized-action mt-6 rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               {t(locale, "public.services.bookService", { serviceName: service.name })}
             </Link>
           </article>
         ))}
-      </section>
+      </LocalizedSection>
 
-      <section className="rounded-[2rem] border border-border bg-card/90 p-8">
+      <LocalizedSection
+        as="section"
+        order={3}
+        className="rounded-[2rem] border border-border bg-card/90 p-8"
+      >
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
           {t(locale, "public.services.availableStaff")}
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {business.staffMembers.map((staffMember) => (
-            <article key={staffMember.id} className="rounded-[1.5rem] bg-surface p-5">
+            <article key={staffMember.id} className="min-h-[12rem] rounded-[1.5rem] bg-surface p-5">
               <h2 className="font-display text-2xl">{staffMember.name}</h2>
               <p className="mt-2 text-sm font-semibold text-accent">{staffMember.title}</p>
               <p className="mt-3 text-sm leading-7 text-muted">{staffMember.bio}</p>
             </article>
           ))}
         </div>
-      </section>
+      </LocalizedSection>
     </div>
   );
 }

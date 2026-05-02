@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { AdminNav } from "@/app/admin/admin-ui";
+import LocalizedSection from "@/app/components/localized-section";
 import { t } from "@/lib/i18n";
 import { getBusinessLocale } from "@/lib/locale-server";
 import { getAdminBusinessSummary } from "@/lib/queries";
@@ -16,7 +17,7 @@ export default async function AdminLayout({
   return (
     <div lang={locale} className="admin-shell min-h-screen">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
-        <section className="admin-panel p-6">
+        <LocalizedSection as="section" order={0} className="admin-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
             {t(locale, "admin.layoutEyebrow")}
           </p>
@@ -31,7 +32,7 @@ export default async function AdminLayout({
             </div>
             <AdminNav locale={locale} />
           </div>
-        </section>
+        </LocalizedSection>
 
         {children}
       </div>

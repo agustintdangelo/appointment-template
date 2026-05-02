@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import LocalizedSection from "@/app/components/localized-section";
 import { formatMoney, formatServiceTiming } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
@@ -29,7 +30,11 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-10 sm:px-6 lg:px-8">
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+      <LocalizedSection
+        as="section"
+        order={1}
+        className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]"
+      >
         <div className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-8 sm:p-10">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
             {t(locale, "public.home.eyebrow")}
@@ -43,13 +48,13 @@ export default async function HomePage() {
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <Link
               href="/book"
-              className="brand-accent-fill rounded-full px-6 py-3 text-center font-semibold transition"
+              className="brand-accent-fill localized-action rounded-full px-6 py-3 font-semibold transition"
             >
               {t(locale, "public.home.startBooking")}
             </Link>
             <Link
               href="/services"
-              className="rounded-full border border-border px-6 py-3 text-center font-semibold transition hover:bg-surface"
+              className="localized-action rounded-full border border-border px-6 py-3 font-semibold transition hover:bg-surface"
             >
               {t(locale, "public.home.browseServices")}
             </Link>
@@ -78,13 +83,13 @@ export default async function HomePage() {
             </div>
           </div>
         </aside>
-      </section>
+      </LocalizedSection>
 
-      <section className="grid gap-5 lg:grid-cols-3">
+      <LocalizedSection as="section" order={2} className="grid gap-5 lg:grid-cols-3">
         {featuredServices.map((service) => (
           <article
             key={service.id}
-            className="brand-accent-shadow rounded-[1.75rem] border border-border bg-card/90 p-6"
+            className="brand-accent-shadow min-h-[19rem] rounded-[1.75rem] border border-border bg-card/90 p-6"
           >
             <p className="text-sm uppercase tracking-[0.3em] text-muted">
               {t(locale, "public.home.featuredService")}
@@ -97,15 +102,19 @@ export default async function HomePage() {
             </div>
             <Link
               href={`/book?service=${service.slug}`}
-              className="brand-accent-outline mt-6 inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition"
+              className="brand-accent-outline localized-action mt-6 rounded-full border px-4 py-2 text-sm font-semibold transition"
             >
               {t(locale, "public.home.bookThisService")}
             </Link>
           </article>
         ))}
-      </section>
+      </LocalizedSection>
 
-      <section className="grid gap-6 rounded-[2rem] border border-border bg-surface/90 p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <LocalizedSection
+        as="section"
+        order={3}
+        className="grid gap-6 rounded-[2rem] border border-border bg-surface/90 p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]"
+      >
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
             {t(locale, "public.home.sliceIncludes")}
@@ -126,19 +135,19 @@ export default async function HomePage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/book"
-              className="brand-accent-fill rounded-full px-4 py-2 text-sm font-semibold transition"
+              className="brand-accent-fill localized-action rounded-full px-4 py-2 text-sm font-semibold transition"
             >
               {t(locale, "public.home.openBookingFlow")}
             </Link>
             <Link
               href="/admin/appointments"
-              className="rounded-full border border-border px-4 py-2 text-sm font-semibold transition hover:bg-surface"
+              className="localized-action rounded-full border border-border px-4 py-2 text-sm font-semibold transition hover:bg-surface"
             >
               {t(locale, "public.home.viewAdminList")}
             </Link>
           </div>
         </div>
-      </section>
+      </LocalizedSection>
     </div>
   );
 }

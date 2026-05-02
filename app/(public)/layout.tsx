@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import LanguageSelector from "@/app/components/language-selector";
+import LocalizedSection from "@/app/components/localized-section";
 import { buildBrandAssetUrl, buildBrandingCssVariables } from "@/lib/branding";
 import { t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
@@ -100,7 +101,11 @@ export default async function PublicLayout({
       style={buildBrandingCssVariables(branding ?? undefined)}
     >
       <div className="min-h-full">
-        <header className="border-b border-border/80 bg-surface/90 backdrop-blur">
+        <LocalizedSection
+          as="header"
+          order={0}
+          className="relative z-40 border-b border-border/80 bg-surface/90 backdrop-blur"
+        >
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8">
             <Link href="/" className="flex min-w-0 items-center gap-4">
               <BrandLockup
@@ -119,26 +124,30 @@ export default async function PublicLayout({
             </Link>
 
             <nav className="flex flex-wrap items-center justify-end gap-4 text-sm font-medium text-muted">
-              <Link href="/" className="transition hover:text-foreground">
+              <Link href="/" className="min-w-[4.75rem] text-center transition hover:text-foreground">
                 {t(locale, "common.home")}
               </Link>
-              <Link href="/services" className="transition hover:text-foreground">
+              <Link href="/services" className="min-w-[4.75rem] text-center transition hover:text-foreground">
                 {t(locale, "common.services")}
               </Link>
-              <Link href="/book" className="transition hover:text-foreground">
+              <Link href="/book" className="min-w-[4.75rem] text-center transition hover:text-foreground">
                 {t(locale, "common.book")}
               </Link>
-              <Link href="/admin/appointments" className="transition hover:text-foreground">
+              <Link href="/admin/appointments" className="min-w-[4.75rem] text-center transition hover:text-foreground">
                 {t(locale, "common.admin")}
               </Link>
               <LanguageSelector locale={locale} />
             </nav>
           </div>
-        </header>
+        </LocalizedSection>
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t border-border/80 bg-surface/80">
+        <LocalizedSection
+          as="footer"
+          order={5}
+          className="border-t border-border/80 bg-surface/80"
+        >
           <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)] lg:px-8">
             <div className="grid gap-2 text-sm text-muted">
               <p>{t(locale, "public.genericFooter")}</p>
@@ -157,7 +166,7 @@ export default async function PublicLayout({
               <p className="brand-on-accent-muted text-sm leading-7">{brandDescription}</p>
             </div>
           </div>
-        </footer>
+        </LocalizedSection>
       </div>
     </div>
   );

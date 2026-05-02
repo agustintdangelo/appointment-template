@@ -832,7 +832,11 @@ function CalendarToolbar({
   locale: AppLocale;
 }) {
   return (
-    <section className="admin-panel px-4 py-4 sm:px-5">
+    <section
+      data-locale-section=""
+      data-locale-section-order="2"
+      className="admin-panel px-4 py-4 sm:px-5"
+    >
       <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-center">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -923,7 +927,7 @@ function CalendarToolbar({
 
 function CalendarLegendCard({ locale }: { locale: AppLocale }) {
   return (
-    <section className="admin-card p-5">
+    <section data-locale-section="" data-locale-section-order="4" className="admin-card p-5">
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
         {t(locale, "admin.calendar.legend")}
       </p>
@@ -963,7 +967,7 @@ function PeriodSnapshotCard({
   locale: AppLocale;
 }) {
   return (
-    <section className="admin-card p-5">
+    <section data-locale-section="" data-locale-section-order="4" className="admin-card p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted">
@@ -1073,7 +1077,11 @@ function MonthView({
   const dayNames = getLocalizedDayOptions(locale).map((day) => day.label.slice(0, 3));
 
   return (
-    <section className="admin-list-shell rounded-[1.25rem]">
+    <section
+      data-locale-section=""
+      data-locale-section-order="3"
+      className="admin-list-shell rounded-[1.25rem]"
+    >
       <div className="grid grid-cols-7 border-b border-border bg-surface/80">
         {dayNames.map((dayName) => (
           <div
@@ -1177,7 +1185,11 @@ function TimeGridView({
   const gridTemplateColumns = `4rem repeat(${days.length}, minmax(0, 1fr))`;
 
   return (
-    <section className="admin-list-shell rounded-[1.25rem]">
+    <section
+      data-locale-section=""
+      data-locale-section-order="3"
+      className="admin-list-shell rounded-[1.25rem]"
+    >
       <div className="w-full min-w-0">
         <div
           className="grid border-b border-border"
@@ -2462,7 +2474,7 @@ export default function CalendarManager({
         </div>
 
         <div className="grid gap-4">
-          <section className="admin-panel p-6">
+          <section data-locale-section="" data-locale-section-order="4" className="admin-panel p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
               {t(locale, "admin.calendar.schedulingConfiguration")}
             </p>
@@ -2474,7 +2486,7 @@ export default function CalendarManager({
             </p>
           </section>
 
-          <section className="admin-panel p-6">
+          <section data-locale-section="" data-locale-section-order="5" className="admin-panel p-6">
             <div className="grid gap-5">
               <div>
                 <h3 className="text-xl font-semibold text-slate-900">
@@ -2551,7 +2563,7 @@ export default function CalendarManager({
             </div>
           </section>
 
-          <section className="admin-panel p-6">
+          <section data-locale-section="" data-locale-section-order="5" className="admin-panel p-6">
             <div className="grid gap-5">
               <div>
                 <h3 className="text-xl font-semibold text-slate-900">

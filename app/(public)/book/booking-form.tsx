@@ -461,6 +461,8 @@ export default function BookingForm({
       <form
         noValidate
         onSubmit={handleSubmit}
+        data-locale-section=""
+        data-locale-section-order="2"
         className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-8"
       >
         <div className="grid gap-5 md:grid-cols-2">
@@ -587,7 +589,7 @@ export default function BookingForm({
                 <button
                   type="button"
                   onClick={handleContinueAsGuest}
-                  className="rounded-2xl border border-accent bg-card px-4 py-3 text-sm font-semibold transition hover:bg-surface"
+                  className="min-h-14 rounded-2xl border border-accent bg-card px-4 py-3 text-sm font-semibold transition hover:bg-surface"
                 >
                   {t(locale, "public.bookingForm.continueAsGuest")}
                 </button>
@@ -595,7 +597,7 @@ export default function BookingForm({
                   type="button"
                   disabled={!authProvidersLoaded || !googleAvailable}
                   onClick={() => handleSignIn("google")}
-                  className="rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
+                  className="min-h-14 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {t(locale, "public.bookingForm.signInWithGoogle")}
                 </button>
@@ -603,7 +605,7 @@ export default function BookingForm({
                   type="button"
                   disabled={!authProvidersLoaded || !appleAvailable}
                   onClick={() => handleSignIn("apple")}
-                  className="rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
+                  className="min-h-14 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {t(locale, "public.bookingForm.signInWithApple")}
                 </button>
@@ -713,7 +715,7 @@ export default function BookingForm({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="brand-accent-fill mt-8 rounded-full px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+          className="brand-accent-fill localized-action mt-8 rounded-full px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isSubmitting
             ? t(locale, "public.bookingForm.confirming")
@@ -721,7 +723,11 @@ export default function BookingForm({
         </button>
       </form>
 
-      <aside className="rounded-[2rem] border border-border bg-surface/90 p-8">
+      <aside
+        data-locale-section=""
+        data-locale-section-order="3"
+        className="rounded-[2rem] border border-border bg-surface/90 p-8"
+      >
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
           {t(locale, "public.bookingForm.bookingSummary")}
         </p>

@@ -1,6 +1,7 @@
-import { getPrimaryBusiness } from "@/lib/queries";
+import LocalizedSection from "@/app/components/localized-section";
 import { t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
+import { getPrimaryBusiness } from "@/lib/queries";
 
 import BookingForm from "./booking-form";
 import CustomerAuthProvider from "./customer-auth-provider";
@@ -24,7 +25,11 @@ export default async function BookPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+      <LocalizedSection
+        as="section"
+        order={1}
+        className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]"
+      >
         <div className="rounded-[2rem] border border-border bg-card/95 p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
             {t(locale, "public.book.eyebrow")}
@@ -45,7 +50,7 @@ export default async function BookPage() {
             <p>{t(locale, "public.book.ruleRevalidation")}</p>
           </div>
         </aside>
-      </section>
+      </LocalizedSection>
 
       <CustomerAuthProvider>
         <BookingForm

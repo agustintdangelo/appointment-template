@@ -184,6 +184,14 @@ A slot is available only if:
 - the admin default selector lives at `/admin/settings` and saves through `updateDefaultLocaleAction`
 - only supported locales pass validation before being saved to `Business.defaultLocale`
 - the public language selector stores the visitor override in `localStorage` and in the `appointment_public_locale` cookie so server-rendered public pages can resolve the same language
+- language switching is coordinated by `lib/locale-transition.ts`
+  - callers keep using `refreshWithLocaleTransition(() => router.refresh())`
+  - the helper sets `html[data-locale-transition]` through an exit / refresh / enter sequence
+  - visible sections opt into the transition with `data-locale-section` and an optional `data-locale-section-order`
+  - `app/components/localized-section.tsx` is the preferred wrapper for server-rendered sections
+  - client components can use the same `data-locale-section` attributes directly
+  - reduced-motion users skip the animated exit/enter behavior and refresh directly
+- translated controls that commonly change width should use stable minimum widths or the shared `localized-action` helper class instead of relying on text width alone
 
 ## Customer authentication architecture
 

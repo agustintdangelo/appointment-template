@@ -87,13 +87,13 @@ export default function LanguageSelector({ locale }: LanguageSelectorProps) {
   }
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative z-[90]">
       <button
         type="button"
         aria-label={t(locale, "common.language")}
         aria-expanded={isOpen}
         onClick={() => setIsOpen((currentValue) => !currentValue)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/80 bg-card/70 px-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted transition hover:border-accent hover:text-foreground focus:border-accent focus:outline-none"
+        className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-full border border-border/80 bg-card/70 px-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted transition hover:border-accent hover:text-foreground focus:border-accent focus:outline-none"
       >
         <svg
           aria-hidden="true"
@@ -126,7 +126,7 @@ export default function LanguageSelector({ locale }: LanguageSelectorProps) {
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-full z-50 mt-2 min-w-36 overflow-hidden rounded-2xl border border-border bg-card p-1 text-sm shadow-lg">
+        <div className="absolute right-0 top-full z-[100] mt-2 min-w-36 overflow-hidden rounded-2xl border border-border bg-card p-1 text-sm shadow-lg">
           {options.map((option) => {
             const isSelected = option.value === selectedLocale;
 
