@@ -15,19 +15,101 @@ type LanguageSettingsFormProps = {
   defaultLocale: AppLocale;
 };
 
+type PersistedLanguageSaveState = {
+  phase: "loading" | "saved";
+  message: string | null;
+  expiresAt?: number;
+};
+
+type LanguageSaveButtonPhase = "idle" | "loading" | "saved";
+
+const LANGUAGE_SAVE_STATE_EVENT = "appointment-language-save-state";
+
+function getLanguageSaveStateStorageKey(businessSlug: string) {
+  return `appointment-language-save-state:${businessSlug}`;
+}
+
+function readPersistedLanguageSaveState(
+  businessSlug: string,
+): PersistedLanguageSaveState | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storedState = window.sessionStorage.getItem(
+    getLanguageSaveStateStorageKey(businessSlug),
+  );
+
+  if (!storedState) {
+    return null;
+  }
+
+  try {
+    const parsedState = JSON.parse(storedState) as PersistedLanguageSaveState;
+
+    if (parsedState.phase !== "loading" && parsedState.phase !== "saved") {
+      return null;
+    }
+
+    if (
+      parsedState.phase === "saved" &&
+      parsedState.expiresAt &&
+      parsedState.expiresAt <= Date.now()
+    ) {
+      clearPersistedLanguageSaveState(businessSlug);
+      return null;
+    }
+
+    return parsedState;
+  } catch {
+    clearPersistedLanguageSaveState(businessSlug);
+    return null;
+  }
+}
+
+function writePersistedLanguageSaveState(
+  businessSlug: string,
+  state: PersistedLanguageSaveState,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const storageKey = getLanguageSaveStateStorageKey(businessSlug);
+  window.sessionStorage.setItem(storageKey, JSON.stringify(state));
+  window.dispatchEvent(
+    new CustomEvent(LANGUAGE_SAVE_STATE_EVENT, {
+      detail: { storageKey, state },
+    }),
+  );
+}
+
+function clearPersistedLanguageSaveState(businessSlug: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const storageKey = getLanguageSaveStateStorageKey(businessSlug);
+  window.sessionStorage.removeItem(storageKey);
+  window.dispatchEvent(
+    new CustomEvent(LANGUAGE_SAVE_STATE_EVENT, {
+      detail: { storageKey, state: null },
+    }),
+  );
+}
+
 function SaveLanguageButton({
   locale,
-  isSaved,
-  isTransitioning,
+  phase,
   savedMessage,
 }: {
   locale: AppLocale;
-  isSaved: boolean;
-  isTransitioning: boolean;
+  phase: LanguageSaveButtonPhase;
   savedMessage: string | null;
 }) {
   const { pending } = useFormStatus();
-  const isLoading = pending || isTransitioning;
+  const isLoading = pending || phase === "loading";
+  const isSaved = phase === "saved";
   const label = isLoading
     ? t(locale, "common.saving")
     : isSaved && savedMessage
@@ -65,30 +147,84 @@ export default function LanguageSettingsForm({
 }: LanguageSettingsFormProps) {
   const router = useRouter();
   const [selectedLocale, setSelectedLocale] = useState(defaultLocale);
+  const [buttonPhase, setButtonPhase] = useState<LanguageSaveButtonPhase>("idle");
   const [savedButtonMessage, setSavedButtonMessage] = useState<string | null>(null);
-  const [isLocaleTransitioning, setIsLocaleTransitioning] = useState(false);
   const savedResetTimerRef = useRef<number | null>(null);
-  const isMountedRef = useRef(true);
   const [state, action] = useActionState(
     updateDefaultLocaleAction,
     initialAdminEntityActionState,
   );
   const handledSuccessStateRef = useRef<typeof state | null>(null);
-  const transitionResultIdRef = useRef(0);
 
   useEffect(() => {
     setSelectedLocale(defaultLocale);
   }, [defaultLocale]);
 
   useEffect(() => {
+    const applyPersistedState = (persistedState: PersistedLanguageSaveState | null) => {
+      if (savedResetTimerRef.current) {
+        window.clearTimeout(savedResetTimerRef.current);
+        savedResetTimerRef.current = null;
+      }
+
+      if (!persistedState) {
+        setButtonPhase("idle");
+        setSavedButtonMessage(null);
+        return;
+      }
+
+      if (persistedState.phase === "loading") {
+        setButtonPhase("loading");
+        setSavedButtonMessage(null);
+        return;
+      }
+
+      setButtonPhase("saved");
+      setSavedButtonMessage(persistedState.message);
+
+      const remainingDuration = Math.max(
+        0,
+        (persistedState.expiresAt ?? Date.now() + 2000) - Date.now(),
+      );
+
+      savedResetTimerRef.current = window.setTimeout(() => {
+        clearPersistedLanguageSaveState(businessSlug);
+        setButtonPhase("idle");
+        setSavedButtonMessage(null);
+        savedResetTimerRef.current = null;
+      }, remainingDuration);
+    };
+
+    applyPersistedState(readPersistedLanguageSaveState(businessSlug));
+
+    const handlePersistedStateChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        storageKey: string;
+        state: PersistedLanguageSaveState | null;
+      }>;
+
+      if (
+        customEvent.detail?.storageKey !== getLanguageSaveStateStorageKey(businessSlug)
+      ) {
+        return;
+      }
+
+      applyPersistedState(customEvent.detail.state ?? null);
+    };
+
+    window.addEventListener(LANGUAGE_SAVE_STATE_EVENT, handlePersistedStateChange);
+
     return () => {
-      isMountedRef.current = false;
+      window.removeEventListener(
+        LANGUAGE_SAVE_STATE_EVENT,
+        handlePersistedStateChange,
+      );
 
       if (savedResetTimerRef.current) {
         window.clearTimeout(savedResetTimerRef.current);
       }
     };
-  }, []);
+  }, [businessSlug]);
 
   useEffect(() => {
     if (state.status === "success" && state.message) {
@@ -97,52 +233,30 @@ export default function LanguageSettingsForm({
       }
 
       handledSuccessStateRef.current = state;
-      transitionResultIdRef.current += 1;
-      const currentTransitionResultId = transitionResultIdRef.current;
-
-      if (savedResetTimerRef.current) {
-        window.clearTimeout(savedResetTimerRef.current);
-        savedResetTimerRef.current = null;
-      }
-
-      setSavedButtonMessage(null);
-      setIsLocaleTransitioning(true);
+      writePersistedLanguageSaveState(businessSlug, {
+        phase: "loading",
+        message: null,
+      });
 
       refreshWithLocaleTransition(() => router.refresh(), {
         onBeforeEnter: () => {
-          if (
-            !isMountedRef.current ||
-            currentTransitionResultId !== transitionResultIdRef.current
-          ) {
-            return;
-          }
-
-          setIsLocaleTransitioning(false);
-          setSavedButtonMessage(state.message);
-        },
-        onComplete: () => {
-          if (
-            !isMountedRef.current ||
-            currentTransitionResultId !== transitionResultIdRef.current
-          ) {
-            return;
-          }
-
-          savedResetTimerRef.current = window.setTimeout(() => {
-            if (!isMountedRef.current) {
-              return;
-            }
-
-            setSavedButtonMessage(null);
-            savedResetTimerRef.current = null;
-          }, 2000);
+          writePersistedLanguageSaveState(businessSlug, {
+            phase: "saved",
+            message: state.message,
+            expiresAt: Date.now() + 2000,
+          });
         },
       });
     } else if (state.status === "error") {
       handledSuccessStateRef.current = null;
-      setIsLocaleTransitioning(false);
+      if (savedResetTimerRef.current) {
+        window.clearTimeout(savedResetTimerRef.current);
+        savedResetTimerRef.current = null;
+      }
+      clearPersistedLanguageSaveState(businessSlug);
+      setButtonPhase("idle");
     }
-  }, [router, state]);
+  }, [businessSlug, router, state]);
 
   return (
     <form
@@ -178,9 +292,10 @@ export default function LanguageSettingsForm({
                 savedResetTimerRef.current = null;
               }
 
-              transitionResultIdRef.current += 1;
+              clearPersistedLanguageSaveState(businessSlug);
+              handledSuccessStateRef.current = null;
+              setButtonPhase("idle");
               setSavedButtonMessage(null);
-              setIsLocaleTransitioning(false);
               setSelectedLocale(event.target.value as AppLocale);
             }}
             className="admin-select admin-select-with-trailing-icon appearance-none text-base font-semibold"
@@ -222,8 +337,7 @@ export default function LanguageSettingsForm({
       <div>
         <SaveLanguageButton
           locale={locale}
-          isSaved={!!savedButtonMessage}
-          isTransitioning={isLocaleTransitioning}
+          phase={buttonPhase}
           savedMessage={savedButtonMessage}
         />
       </div>

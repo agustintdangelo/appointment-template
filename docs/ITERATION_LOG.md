@@ -966,3 +966,14 @@ Date/time: 2026-05-02 multi-tenant platform foundation
 
 ### Next recommended step
 - deploy or expose one stable HTTPS platform domain, then configure Apple Sign-In against `https://yourplatform.com/api/auth/callback/apple`
+
+## 2026-05-03 - Admin locale save state fix
+
+### What changed
+- fixed the admin language settings button so it no longer gets stuck in loading after the locale transition refresh
+- moved the transient save-button phase (`loading` -> `saved`) into a short-lived `sessionStorage` bridge keyed by business slug so the refreshed client tree can resume the right visual state
+- kept the success state delayed until the transition reaches the enter phase, then auto-cleared it after 2 seconds as before
+
+### Files/modules affected
+- `app/admin/settings/language-settings-form.tsx`
+- `docs/ITERATION_LOG.md`
