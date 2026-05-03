@@ -114,8 +114,8 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   pages: {
-    signIn: "/book",
-    error: "/book",
+    signIn: "/",
+    error: "/",
   },
   callbacks: {
     async jwt({ token, user, account, profile }) {

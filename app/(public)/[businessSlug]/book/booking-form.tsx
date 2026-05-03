@@ -8,10 +8,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { isValidGenericPhoneNumber } from "@/lib/contact";
 import { formatMoney, formatServiceTiming } from "@/lib/format";
 import { t, type AppLocale } from "@/lib/i18n";
+import { buildPublicBusinessPath } from "@/lib/tenant";
 
 type BusinessOption = {
   id: string;
   name: string;
+  slug: string;
 };
 
 type ServiceOption = {
@@ -59,7 +61,7 @@ type SavedBookingState = {
   notes?: string;
 };
 
-const BOOKING_STATE_STORAGE_KEY = "appointment-public-booking-state";
+const BOOKING_STATE_STORAGE_KEY_PREFIX = "appointment-public-booking-state";
 
 function getInitialBookingDate() {
   const date = addDays(new Date(), 1);
@@ -79,9 +81,13 @@ function isValidEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function readSavedBookingState() {
+function getBookingStateStorageKey(businessSlug: string) {
+  return `${BOOKING_STATE_STORAGE_KEY_PREFIX}:${businessSlug}`;
+}
+
+function readSavedBookingState(businessSlug: string) {
   try {
-    const rawState = window.sessionStorage.getItem(BOOKING_STATE_STORAGE_KEY);
+    const rawState = window.sessionStorage.getItem(getBookingStateStorageKey(businessSlug));
 
     if (!rawState) {
       return null;
@@ -135,7 +141,7 @@ export default function BookingForm({
   const hasAnyAuthProvider = googleAvailable || appleAvailable;
 
   useEffect(() => {
-    const savedState = readSavedBookingState();
+    const savedState = readSavedBookingState(business.slug);
 
     if (savedState) {
       const savedServiceId = services.some((service) => service.id === savedState.selectedServiceId)
@@ -162,7 +168,7 @@ export default function BookingForm({
     }
 
     setHasRestoredBookingState(true);
-  }, [services, staffMembers]);
+  }, [business.slug, services, staffMembers]);
 
   useEffect(() => {
     if (!hasRestoredBookingState) {
@@ -198,8 +204,12 @@ export default function BookingForm({
       notes,
     };
 
-    window.sessionStorage.setItem(BOOKING_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
+    window.sessionStorage.setItem(
+      getBookingStateStorageKey(business.slug),
+      JSON.stringify(stateToSave),
+    );
   }, [
+    business.slug,
     customerEmail,
     customerName,
     customerPhone,
@@ -269,7 +279,7 @@ export default function BookingForm({
 
       try {
         const params = new URLSearchParams({
-          businessId: business.id,
+          businessSlug: business.slug,
           serviceId: selectedServiceId,
           staffMemberId: selectedStaffId,
           date: selectedDate,
@@ -319,7 +329,7 @@ export default function BookingForm({
     };
   }, [
     availabilityRefreshKey,
-    business.id,
+    business.slug,
     locale,
     selectedDate,
     selectedServiceId,
@@ -368,7 +378,10 @@ export default function BookingForm({
       notes,
     };
 
-    window.sessionStorage.setItem(BOOKING_STATE_STORAGE_KEY, JSON.stringify(stateToSave));
+    window.sessionStorage.setItem(
+      getBookingStateStorageKey(business.slug),
+      JSON.stringify(stateToSave),
+    );
   }
 
   async function submitBooking() {
@@ -378,7 +391,7 @@ export default function BookingForm({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        businessId: business.id,
+        businessSlug: business.slug,
         serviceId: selectedServiceId,
         staffMemberId: selectedStaffId,
         date: selectedDate,
@@ -408,8 +421,10 @@ export default function BookingForm({
       return;
     }
 
-    window.sessionStorage.removeItem(BOOKING_STATE_STORAGE_KEY);
-    router.push(`/book/confirmation/${payload.appointmentId}`);
+    window.sessionStorage.removeItem(getBookingStateStorageKey(business.slug));
+    router.push(
+      buildPublicBusinessPath(business.slug, `/book/confirmation/${payload.appointmentId}`),
+    );
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -445,14 +460,14 @@ export default function BookingForm({
   function handleSignIn(provider: "google" | "apple") {
     persistCurrentBookingState();
     void signIn(provider, {
-      callbackUrl: "/book?auth=customer",
+      callbackUrl: `${buildPublicBusinessPath(business.slug, "/book")}?auth=customer`,
     });
   }
 
   function handleSignOut() {
     persistCurrentBookingState();
     void signOut({
-      callbackUrl: "/book?auth=guest",
+      callbackUrl: `${buildPublicBusinessPath(business.slug, "/book")}?auth=guest`,
     });
   }
 

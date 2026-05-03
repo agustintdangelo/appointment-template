@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import { redirectToPrimaryAdmin } from "@/lib/tenant-redirects";
 
-export default function LegacyBusinessHoursPage() {
-  redirect("/admin/calendar");
+export const dynamic = "force-dynamic";
+
+export default async function LegacyBusinessHoursPage() {
+  await redirectToPrimaryAdmin("/calendar");
 }

@@ -15,6 +15,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - services list
 - booking flow
 - availability picker
+- path-based multi-tenant business pages
 - optional Google / Apple customer sign-in
 - guest contact collection
 - booking confirmation
@@ -33,6 +34,10 @@ The first demo implementation represents a nail salon, but the architecture shou
 - implemented: landing page
 - implemented: public services page
 - implemented: booking flow with staff selection
+- implemented: platform landing page at `/`
+- implemented: slug-scoped public routes at `/[businessSlug]`, `/[businessSlug]/services`, and `/[businessSlug]/book`
+- implemented: slug-scoped admin routes under `/admin/[businessSlug]`
+- implemented: legacy single-business redirects to the first seeded business when available
 - implemented: optional Google / Apple sign-in for public customer bookings
 - implemented: guest booking path with required full name, email, and phone
 - implemented: live availability generation
@@ -66,11 +71,14 @@ The first demo implementation represents a nail salon, but the architecture shou
 - authenticated bookings are linked to a customer identity derived from the server-side session
 - guest bookings keep guest contact details directly on the appointment
 - bookings are confirmed immediately after creation in the current implementation
+- public and admin pages resolve the active business by `Business.slug`
+- legacy local-development URLs such as `/book`, `/services`, and `/admin/calendar` redirect to the first seeded business when one exists
+- Apple Sign-In should use one shared HTTPS platform callback, not a per-client callback URL
 
 ## Localization behavior
 - supported languages are Spanish (`es`) and English (`en`)
 - Spanish is the product default when no language is configured
-- admins configure the business default language from `/admin/settings`
+- admins configure the business default language from `/admin/[businessSlug]/settings`
 - the configured default language applies to the public booking experience and the admin workspace
 - public visitors can switch language from the public selector; that choice is stored for their browser and does not change the admin-configured default
 - unsupported or missing locale values fall back to Spanish
@@ -87,6 +95,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - subscriptions
 - advanced analytics
 - external calendar sync
+- custom client domains
 
 ## Future roadmap
 - appointment status editing
@@ -95,4 +104,4 @@ The first demo implementation represents a nail salon, but the architecture shou
 - reminder / confirmation delivery system
 - rescheduling
 - deposits / payments
-- multi-business support
+- custom client domains

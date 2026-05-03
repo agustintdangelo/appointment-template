@@ -38,6 +38,7 @@ type ServiceRecord = {
 };
 
 type ServicesManagerProps = {
+  businessSlug: string;
   services: ServiceRecord[];
   locale: AppLocale;
 };
@@ -173,10 +174,12 @@ function DeleteServiceButton({
 
 function ServiceModalForm({
   service,
+  businessSlug,
   onClose,
   locale,
 }: {
   service: ServiceRecord | null;
+  businessSlug: string;
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -198,6 +201,7 @@ function ServiceModalForm({
   return (
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
+        <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="serviceId" defaultValue={service?.id ?? ""} />
         <input type="hidden" name="locale" value={locale} />
 
@@ -333,6 +337,7 @@ function ServiceModalForm({
             </div>
 
             <form action={deleteAction}>
+              <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="serviceId" defaultValue={service.id} />
               <input type="hidden" name="locale" value={locale} />
               <DeleteServiceButton disabled={!canDelete} locale={locale} />
@@ -543,7 +548,11 @@ function EmptyResults({
   );
 }
 
-export default function ServicesManager({ services, locale }: ServicesManagerProps) {
+export default function ServicesManager({
+  businessSlug,
+  services,
+  locale,
+}: ServicesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminCollectionStatusFilter>("all");
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
@@ -676,7 +685,12 @@ export default function ServicesManager({ services, locale }: ServicesManagerPro
         closeLabel={t(locale, "common.close")}
         closeAriaLabel={t(locale, "common.closeDialog")}
       >
-        <ServiceModalForm service={modalService} onClose={closeModal} locale={locale} />
+        <ServiceModalForm
+          businessSlug={businessSlug}
+          service={modalService}
+          onClose={closeModal}
+          locale={locale}
+        />
       </CreateEntityModal>
     </>
   );

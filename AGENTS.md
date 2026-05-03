@@ -107,7 +107,7 @@ Branding is a first-class feature in this template.
   - favicon
 - public branding is applied at runtime from persisted settings
   - use `lib/branding.ts` for defaults, normalization, validation, contrast logic, derived tokens, and asset URLs
-  - use `app/(public)/layout.tsx` to apply public branding CSS variables
+  - use `app/(public)/[businessSlug]/layout.tsx` to apply public branding CSS variables for the active tenant
   - keep admin pages operationally neutral unless a task explicitly calls for branded admin UI
 - uploaded branding assets must stay in the current persistence layer
   - do not introduce ad hoc filesystem storage when the DB-backed asset model already exists
@@ -133,7 +133,7 @@ Branding is a first-class feature in this template.
 ## Admin workspace rules
 The admin workspace now has a few concrete patterns that should be extended instead of replaced:
 
-- `app/admin/page.tsx` redirects to `/admin/calendar`, so calendar is the primary admin landing workspace
+- `app/admin/page.tsx` redirects to `/admin/[businessSlug]/calendar` for the first seeded business, so calendar is the primary admin landing workspace
 - use `AdminPageIntro`, `AdminNotice`, and `AdminEmptyState` from `app/admin/admin-ui.tsx` before creating new page shells
 - keep the admin workspace plain and operational
   - prefer default admin typography over public display fonts
@@ -218,7 +218,7 @@ Use these existing anchors before inventing new patterns:
   - `app/globals.css`
   - `lib/branding.ts`
 - scheduling admin flow:
-  - `/admin/calendar`
+  - `/admin/[businessSlug]/calendar`
   - `app/admin/calendar/`
   - `app/admin/actions.ts`
   - `lib/business-hours.ts`
@@ -233,9 +233,9 @@ Use these existing anchors before inventing new patterns:
   - `app/admin/components/collection-view-transition.tsx`
 - admin shell navigation:
   - `app/admin/admin-ui.tsx`
-  - include the shared "Back to home" action alongside admin section navigation
+  - include the shared tenant-aware "Back to home" action alongside admin section navigation
 - branding admin flow:
-  - `/admin/branding`
+  - `/admin/[businessSlug]/branding`
   - `app/admin/actions.ts`
   - `app/admin/branding/`
 - persistence:

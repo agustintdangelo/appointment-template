@@ -3,7 +3,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import type { BrandingActionState } from "@/app/admin/branding/branding-types";
-import { getFormCheckbox, getFormString } from "@/lib/admin";
+import { getFormCheckbox, getFormString, getOptionalFormString } from "@/lib/admin";
 import {
   brandAssetKinds,
   brandFontValues,
@@ -17,6 +17,11 @@ import {
 } from "@/lib/branding";
 import { DEFAULT_LOCALE, normalizeLocale, t } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
+import {
+  buildAdminBusinessPath,
+  buildPublicBusinessPath,
+  normalizeBusinessSlug,
+} from "@/lib/tenant";
 
 function brandFontField(label: string, locale: unknown) {
   return z
@@ -117,10 +122,19 @@ function buildSavedBrandingAssets(
   return savedAssets;
 }
 
-async function getCurrentBrandingSnapshot() {
+async function getCurrentBrandingSnapshot(businessSlug?: string) {
   const business = await prisma.business.findFirst({
+    where: businessSlug
+      ? {
+          slug: normalizeBusinessSlug(businessSlug),
+        }
+      : undefined,
+    orderBy: {
+      createdAt: "asc",
+    },
     select: {
       id: true,
+      slug: true,
       primaryFont: true,
       secondaryFont: true,
       primaryColor: true,
@@ -146,6 +160,7 @@ async function getCurrentBrandingSnapshot() {
   if (!business) {
     return {
       businessId: null,
+      businessSlug: null,
       savedBranding: null,
       savedAssets: null,
     };
@@ -153,6 +168,7 @@ async function getCurrentBrandingSnapshot() {
 
   return {
     businessId: business.id,
+    businessSlug: business.slug,
     savedBranding: normalizeBrandingSettings(business),
     savedAssets: buildSavedBrandingAssets(business.brandAssets),
   };
@@ -202,19 +218,26 @@ function handleBrandingMutationError(
   );
 }
 
-function revalidateBrandingPaths() {
+function revalidateBrandingPaths(businessSlug: string) {
   revalidateTag("public-branding", "max");
 
   for (const path of ["/", "/services", "/book", "/admin/branding"]) {
     revalidatePath(path);
   }
+
+  for (const path of ["/", "/services", "/book"]) {
+    revalidatePath(buildPublicBusinessPath(businessSlug, path === "/" ? "" : path));
+  }
+
+  revalidatePath(buildAdminBusinessPath(businessSlug, "/branding"));
 }
 
 export async function saveBrandingFromFormData(formData: FormData): Promise<BrandingActionState> {
   const locale = normalizeLocale(getFormString(formData.get("locale")) || DEFAULT_LOCALE);
-  const currentSnapshot = await getCurrentBrandingSnapshot();
+  const businessSlug = getOptionalFormString(formData.get("businessSlug"));
+  const currentSnapshot = await getCurrentBrandingSnapshot(businessSlug);
 
-  if (!currentSnapshot.businessId) {
+  if (!currentSnapshot.businessId || !currentSnapshot.businessSlug) {
     return buildBrandingActionState("error", t(locale, "actions.brandingSeed"));
   }
 
@@ -348,7 +371,7 @@ export async function saveBrandingFromFormData(formData: FormData): Promise<Bran
       );
     }
 
-    revalidateBrandingPaths();
+    revalidateBrandingPaths(currentSnapshot.businessSlug);
 
     return buildBrandingActionState(
       "success",

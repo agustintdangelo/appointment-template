@@ -37,6 +37,7 @@ type StaffRecord = {
 };
 
 type StaffManagerProps = {
+  businessSlug: string;
   staffMembers: StaffRecord[];
   locale: AppLocale;
 };
@@ -172,10 +173,12 @@ function DeleteStaffButton({
 
 function StaffModalForm({
   staffMember,
+  businessSlug,
   onClose,
   locale,
 }: {
   staffMember: StaffRecord | null;
+  businessSlug: string;
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -200,6 +203,7 @@ function StaffModalForm({
   return (
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
+        <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="staffMemberId" defaultValue={staffMember?.id ?? ""} />
         <input type="hidden" name="locale" value={locale} />
 
@@ -305,6 +309,7 @@ function StaffModalForm({
             </div>
 
             <form action={deleteAction}>
+              <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="staffMemberId" defaultValue={staffMember.id} />
               <input type="hidden" name="locale" value={locale} />
               <DeleteStaffButton disabled={!canDelete} locale={locale} />
@@ -517,7 +522,11 @@ function EmptyResults({
   );
 }
 
-export default function StaffManager({ staffMembers, locale }: StaffManagerProps) {
+export default function StaffManager({
+  businessSlug,
+  staffMembers,
+  locale,
+}: StaffManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<AdminCollectionStatusFilter>("all");
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
@@ -651,6 +660,7 @@ export default function StaffManager({ staffMembers, locale }: StaffManagerProps
         closeAriaLabel={t(locale, "common.closeDialog")}
       >
         <StaffModalForm
+          businessSlug={businessSlug}
           staffMember={modalStaffMember}
           onClose={closeModal}
           locale={locale}

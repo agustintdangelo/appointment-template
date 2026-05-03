@@ -20,6 +20,7 @@ This template should be easy to adapt from one appointment-based business to ano
 - update the seeded business and demo records in `prisma/seed.mjs`
 - or use the admin pages to adjust branding, services, staff, and schedule rules from the calendar workspace after bootstrapping
 - use `/admin/settings` to choose the default language for the public site and admin workspace
+- in platform mode, use `/admin/[businessSlug]/settings` for the target business
 - update homepage and catalog presentation only if the new vertical needs different marketing copy
 - keep the Prisma entities generic unless a real cross-vertical requirement forces a schema change
 
@@ -57,15 +58,20 @@ Keep:
 - the current demo uses beauty-oriented service names
 - the core booking logic does not assume beauty-specific behavior
 - day-to-day demo adjustments can now happen through admin pages instead of seed edits alone
-- branding can be changed from `/admin/branding` without code edits
-- the default language can be changed from `/admin/settings`; Spanish (`es`) is the safe fallback if no locale is configured
-- calendar-based scheduling adjustments, blackout rules, and Business periods can be managed from `/admin/calendar`
+- branding can be changed from `/admin/[businessSlug]/branding` without code edits
+- the default language can be changed from `/admin/[businessSlug]/settings`; Spanish (`es`) is the safe fallback if no locale is configured
+- calendar-based scheduling adjustments, blackout rules, and Business periods can be managed from `/admin/[businessSlug]/calendar`
 - logos and favicon are stored in the database and served through the app
 - public customers can always book as guests with full name, email, and phone
 - optional Google / Apple sign-in can be enabled per deployment through OAuth environment variables
+- customer OAuth is configured once for the platform domain, not once per client business path
 - authenticated bookings link to a reusable `Customer` record, while guest contact details stay on the appointment
+- public links should include the business slug, for example `/studio-hours-demo/book`
+- admin links should include the business slug, for example `/admin/studio-hours-demo/calendar`
+- legacy single-business URLs redirect to the first seeded business for local development continuity
 - appointment rows now include contact fields and a hashed management-token foundation for future secure cancellation/modification links
 - actual cancellation/modification pages and confirmation delivery providers are still future work
+- Apple Sign-In setup should wait for one HTTPS platform domain and use `/api/auth/callback/apple` as the shared callback
 - if a new vertical needs different durations, buffers, schedules, branding, or demo copy, prefer seed/config updates over branching business logic
 
 ## Adding another language

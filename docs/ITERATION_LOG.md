@@ -917,3 +917,52 @@ Date/time: 2026-05-01 section-based locale transition polish
 
 ### Next recommended step
 - add a small browser smoke test that switches languages on `/`, `/book`, and `/admin/settings` and checks for visible section transition markers without layout overflow
+
+## Iteration 24
+Date/time: 2026-05-02 multi-tenant platform foundation
+
+### What changed
+- moved the public business experience under slug-scoped routes: `/[businessSlug]`, `/[businessSlug]/services`, `/[businessSlug]/book`, and `/[businessSlug]/book/confirmation/[appointmentId]`
+- moved active admin pages under `/admin/[businessSlug]`
+- changed root `/` into a neutral platform landing page that links to the seeded demo business when available
+- added temporary legacy redirects from `/services`, `/book`, `/admin/calendar`, `/admin/appointments`, `/admin/services`, `/admin/staff`, `/admin/branding`, and `/admin/settings` to the first seeded business
+- made public branding, locale, booking state, confirmation pages, and admin reads resolve by `Business.slug`
+- changed availability and appointment creation so the server resolves the business from the slug and then validates service, staff, and slot ownership against that business
+- scoped admin create/update/delete actions to the submitted business slug and revalidated both legacy and slug-scoped paths
+- documented the one-platform-domain Apple Sign-In strategy and the current local-development limitation
+
+### Files/modules affected
+- `app/(public)/`
+- `app/admin/`
+- `app/api/availability/route.ts`
+- `app/api/appointments/route.ts`
+- `lib/tenant.ts`
+- `lib/tenant-redirects.ts`
+- `lib/queries.ts`
+- `lib/validation.ts`
+- `lib/branding-admin.ts`
+- `lib/customer-auth.ts`
+- `README.md`
+- `.env.example`
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ADAPTATION_GUIDE.md`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- prioritized one shared platform domain over per-client custom domains so Apple Sign-In can use a single Services ID and callback URL
+- kept customer OAuth global while business tenancy is carried by path slugs
+- preserved local-development continuity through redirects to the first seeded business instead of removing old routes outright
+- kept admin authentication out of this slice; admin pages remain operationally separate but not yet protected
+
+### Open issues / risks
+- Apple Sign-In still needs one real HTTPS platform domain before provider setup can be completed
+- custom client domains are not implemented
+- admin auth is still missing
+- customer cancellation, modification, rescheduling, appointment history, and actual confirmation delivery remain separate future slices
+
+### Next recommended step
+- deploy or expose one stable HTTPS platform domain, then configure Apple Sign-In against `https://yourplatform.com/api/auth/callback/apple`

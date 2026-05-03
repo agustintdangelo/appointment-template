@@ -10,6 +10,7 @@ import { getSupportedLocaleOptions, t, type AppLocale } from "@/lib/i18n";
 import { refreshWithLocaleTransition } from "@/lib/locale-transition";
 
 type LanguageSettingsFormProps = {
+  businessSlug: string;
   locale: AppLocale;
   defaultLocale: AppLocale;
 };
@@ -58,6 +59,7 @@ function SaveLanguageButton({
 }
 
 export default function LanguageSettingsForm({
+  businessSlug,
   locale,
   defaultLocale,
 }: LanguageSettingsFormProps) {
@@ -149,6 +151,7 @@ export default function LanguageSettingsForm({
       data-locale-section-order="2"
       className="admin-panel grid gap-5 p-6"
     >
+      <input type="hidden" name="businessSlug" value={businessSlug} />
       <input type="hidden" name="locale" value={locale} />
 
       <div className="grid gap-2 border-b border-border pb-4">

@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import { redirectToPrimaryAdmin } from "@/lib/tenant-redirects";
 
-export default function AdminIndexPage() {
-  redirect("/admin/calendar");
+export const dynamic = "force-dynamic";
+
+export default async function AdminIndexPage() {
+  await redirectToPrimaryAdmin("/calendar");
 }

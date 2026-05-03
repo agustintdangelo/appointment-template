@@ -29,20 +29,24 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - Zod for request validation
 - date-fns for booking time calculations
 - NextAuth for optional public Google / Apple OAuth sign-in
+- path-based multi-tenant routing by `Business.slug`
 
 ## Current structure
 - `app/`
-  - `/(public)` public route group for branded pages while keeping the same URLs
-  - `/` landing page
-  - `/services` public services catalog
-  - `/book` booking flow
-  - `/book/confirmation/[appointmentId]` confirmation page
-  - `/admin/calendar` unified scheduling workspace with calendar views, blackout management, and business-hours configuration
-  - `/admin/appointments` basic admin list
-  - `/admin/branding` branding management page
-  - `/admin/settings` workspace settings, including the default language selector
-  - `/admin/services` service CRUD
-  - `/admin/staff` staff CRUD
+  - `/(public)` public route group
+  - `/` platform landing page
+  - `/[businessSlug]` branded public business home
+  - `/[businessSlug]/services` public services catalog
+  - `/[businessSlug]/book` booking flow
+  - `/[businessSlug]/book/confirmation/[appointmentId]` confirmation page
+  - `/services`, `/book`, and legacy confirmation URLs redirect to the first seeded business when available
+  - `/admin/[businessSlug]/calendar` unified scheduling workspace with calendar views, blackout management, and business-hours configuration
+  - `/admin/[businessSlug]/appointments` basic admin list
+  - `/admin/[businessSlug]/branding` branding management page
+  - `/admin/[businessSlug]/settings` workspace settings, including the default language selector
+  - `/admin/[businessSlug]/services` service CRUD
+  - `/admin/[businessSlug]/staff` staff CRUD
+  - legacy `/admin/*` pages redirect to the first seeded business when available
   - `/admin/actions.ts` admin server actions
   - `/admin/layout.tsx` shared admin shell
   - `/api/availability` slot generation endpoint
@@ -61,6 +65,10 @@ Provide a generic appointment system that can be adapted to multiple service-bus
   - branding defaults, font catalog, color derivation, contrast warnings, upload validation, and asset URLs
 - `lib/queries.ts`
   - read models for public and admin pages, including cached public branding reads
+- `lib/tenant.ts`
+  - client-safe business slug normalization and path builders
+- `lib/tenant-redirects.ts`
+  - server-only legacy redirects to the first seeded/demo business
 - `lib/i18n.ts`
   - supported locales, translation dictionaries, locale validation, labels, date-fns locale mapping, and Spanish fallback behavior
 - `lib/locale-server.ts`
@@ -87,8 +95,10 @@ A slot is available only if:
 - it fits service duration and optional buffer rules
 
 ## Current implementation decisions
-- single-business mode for the first slice
-  - pages read the first business record from the database
+- path-based multi-tenant mode
+  - public and admin pages resolve the business by `Business.slug`
+  - root `/` is a neutral platform landing page
+  - legacy single-business URLs redirect to the first seeded business for local development continuity
 - staff selection is required during booking
   - keeps schedule computation explicit for MVP
 - business hours now support multiple Business periods per day
@@ -98,8 +108,14 @@ A slot is available only if:
   - staff availability continues to support multiple rows per day
 - slot generation uses 15-minute increments
 - appointment creation rechecks availability on the server before insert
+- appointment creation and availability no longer trust a client-submitted `businessId`
+  - the client sends the active business slug from the route
+  - the server resolves that slug to a business id
+  - service, staff, slot, and appointment writes are scoped to that resolved business id
 - public customer authentication is optional
   - Google and Apple OAuth use NextAuth with JWT sessions
+  - OAuth callbacks remain global, for example `/api/auth/callback/apple`
+  - all client businesses can share one platform Apple Service ID while they live under one platform domain
   - customer sessions are separate from the admin workspace
   - OAuth provider tokens are not stored in the app database
   - customer records are upserted by provider + provider account id to avoid duplicate identities for repeat sign-ins
@@ -108,7 +124,7 @@ A slot is available only if:
 - appointment contact fields are stored separately from optional customer ownership so authenticated customers can edit the contact destination for a specific booking
 - new bookings generate a high-entropy management token and store only its SHA-256 hash on the appointment as a foundation for future secure cancellation/modification links
 - `lib/confirmation.ts` is a provider-free integration point for future email, SMS, WhatsApp, or other confirmation channels
-- admin CRUD uses server actions with redirect-and-revalidate flow
+- admin CRUD uses server actions and every mutation resolves/scopes the business from the submitted slug
 - services and staff members with linked appointments cannot be deleted
   - deactivation is the safe operational path
 - Prisma 7 uses `prisma.config.ts` plus `@prisma/adapter-better-sqlite3`
@@ -152,7 +168,7 @@ A slot is available only if:
   - main logo
   - alternate logo
   - favicon
-- the public route group has its own layout
+- each slug-scoped public business route has its own branded layout
   - reads branding once per request through a cached Prisma helper
   - applies CSS variables for the public site only
   - keeps the admin shell on default neutral styling
@@ -181,7 +197,7 @@ A slot is available only if:
   - `es`: Español
   - `en`: English
 - date formatting uses the matching date-fns locale where relevant
-- the admin default selector lives at `/admin/settings` and saves through `updateDefaultLocaleAction`
+- the admin default selector lives at `/admin/[businessSlug]/settings` and saves through `updateDefaultLocaleAction`
 - only supported locales pass validation before being saved to `Business.defaultLocale`
 - the public language selector stores the visitor override in `localStorage` and in the `appointment_public_locale` cookie so server-rendered public pages can resolve the same language
 - language switching is coordinated by `lib/locale-transition.ts`
@@ -208,7 +224,7 @@ A slot is available only if:
   - Google: `/api/auth/callback/google`
   - Apple: `/api/auth/callback/apple`
 - Apple requires external Apple Developer setup: Service ID, return URL, key/team configuration, and a signed client-secret JWT.
-- The public booking form stores in-progress selections and contact fields in `sessionStorage` before OAuth redirects, then restores them when the customer returns to `/book`.
+- The public booking form stores in-progress selections and contact fields in slug-scoped `sessionStorage` before OAuth redirects, then restores them when the customer returns to `/[businessSlug]/book`.
 - Provider profile name/email are used only to prefill empty contact fields. The customer can still edit contact name, email, and phone before confirming.
 - Admin authentication remains separate. This slice does not add admin login or authorize admin routes.
 
@@ -232,7 +248,8 @@ A slot is available only if:
 
 ## Extension points
 In later versions this can extend into:
-- multiple businesses
+- custom client domains
+- tenant onboarding automation
 - payments
 - reminder channels
 - staff-specific services

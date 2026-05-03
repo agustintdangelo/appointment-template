@@ -60,6 +60,7 @@ import {
   t,
   type AppLocale,
 } from "@/lib/i18n";
+import { buildAdminBusinessPath } from "@/lib/tenant";
 
 type BusinessPeriod = BusinessPeriodRecord;
 type BusinessHoursDay = BusinessHoursDayRecord<BusinessPeriod>;
@@ -114,6 +115,7 @@ type BlackoutRecord = {
 };
 
 type CalendarManagerProps = {
+  businessSlug: string;
   businessHours: BusinessHoursDay[];
   staffMembers: StaffRecord[];
   appointments: AppointmentRecord[];
@@ -950,6 +952,7 @@ function CalendarLegendCard({ locale }: { locale: AppLocale }) {
 }
 
 function PeriodSnapshotCard({
+  businessSlug,
   rangeLabel,
   selectedStaffMember,
   visibleAppointmentsCount,
@@ -958,6 +961,7 @@ function PeriodSnapshotCard({
   onEditBlackout,
   locale,
 }: {
+  businessSlug: string;
   rangeLabel: string;
   selectedStaffMember: StaffRecord | null;
   visibleAppointmentsCount: number;
@@ -1035,7 +1039,7 @@ function PeriodSnapshotCard({
                 </p>
               </div>
               <Link
-                href="/admin/appointments"
+                href={buildAdminBusinessPath(businessSlug, "/appointments")}
                 className="admin-button-secondary w-fit"
               >
                 {t(locale, "admin.calendar.openAppointments")}
@@ -1364,11 +1368,13 @@ function DeleteBlackoutButton({ locale }: { locale: AppLocale }) {
 
 function BlackoutModalForm({
   seed,
+  businessSlug,
   staffMembers,
   onClose,
   locale,
 }: {
   seed: BlackoutModalSeed;
+  businessSlug: string;
   staffMembers: StaffRecord[];
   onClose: () => void;
   locale: AppLocale;
@@ -1394,6 +1400,7 @@ function BlackoutModalForm({
   return (
     <div className="grid gap-6">
       <form action={saveAction} className="grid gap-5">
+        <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="blackoutDateId" defaultValue={seed.blackoutDateId ?? ""} />
         <input type="hidden" name="locale" value={locale} />
 
@@ -1483,6 +1490,7 @@ function BlackoutModalForm({
             </div>
 
             <form action={deleteAction}>
+              <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="blackoutDateId" defaultValue={seed.blackoutDateId ?? ""} />
               <input type="hidden" name="locale" value={locale} />
               <DeleteBlackoutButton locale={locale} />
@@ -1520,10 +1528,12 @@ function SaveBusinessHoursButton({
 
 function BusinessHoursModalForm({
   seed,
+  businessSlug,
   onClose,
   locale,
 }: {
   seed: BusinessHoursModalSeed;
+  businessSlug: string;
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -1626,6 +1636,7 @@ function BusinessHoursModalForm({
       className="grid gap-5"
       onSubmit={() => setSubmittedVersion(editVersion)}
     >
+      <input type="hidden" name="businessSlug" value={businessSlug} />
       <input type="hidden" name="dayOfWeek" value={seed.dayOfWeek} />
       <input type="hidden" name="locale" value={locale} />
 
@@ -2325,6 +2336,7 @@ function BusinessHoursListRow({
 }
 
 export default function CalendarManager({
+  businessSlug,
   businessHours,
   staffMembers,
   appointments,
@@ -2463,6 +2475,7 @@ export default function CalendarManager({
         <div className="grid gap-4 md:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
           <CalendarLegendCard locale={locale} />
           <PeriodSnapshotCard
+            businessSlug={businessSlug}
             rangeLabel={rangeLabel}
             selectedStaffMember={selectedStaffMember}
             visibleAppointmentsCount={visibleAppointmentsCount}
@@ -2613,6 +2626,7 @@ export default function CalendarManager({
         {blackoutModalSeed ? (
           <BlackoutModalForm
             key={blackoutModalKey}
+            businessSlug={businessSlug}
             seed={blackoutModalSeed}
             staffMembers={staffMembers}
             onClose={closeBlackoutModal}
@@ -2639,6 +2653,7 @@ export default function CalendarManager({
         {businessHoursModalSeed ? (
           <BusinessHoursModalForm
             key={`business-hours-${businessHoursModalSeed.dayOfWeek}`}
+            businessSlug={businessSlug}
             seed={businessHoursModalSeed}
             onClose={closeBusinessHoursModal}
             locale={locale}

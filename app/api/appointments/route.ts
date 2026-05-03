@@ -16,6 +16,7 @@ import { prepareAppointmentConfirmation } from "@/lib/confirmation";
 import { getCustomerAuthSession } from "@/lib/customer-auth";
 import { normalizeLocale, t } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
+import { normalizeBusinessSlug } from "@/lib/tenant";
 import { bookingSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -84,7 +85,31 @@ export async function POST(request: Request) {
         : undefined,
     );
     const payload = bookingSchema.parse(rawPayload);
-    const availability = await getDailyAvailability(payload, locale);
+    const business = await prisma.business.findUnique({
+      where: {
+        slug: normalizeBusinessSlug(payload.businessSlug),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        { error: t(locale, "validation.businessNotFound") },
+        { status: 404 },
+      );
+    }
+
+    const availability = await getDailyAvailability(
+      {
+        businessId: business.id,
+        serviceId: payload.serviceId,
+        staffMemberId: payload.staffMemberId,
+        date: payload.date,
+      },
+      locale,
+    );
     const matchingSlot = availability.slots.find(
       (slot) => slot.startAt.toISOString() === payload.slotStart,
     );
@@ -109,7 +134,7 @@ export async function POST(request: Request) {
 
     const appointment = await prisma.appointment.create({
       data: {
-        businessId: payload.businessId,
+        businessId: business.id,
         serviceId: payload.serviceId,
         staffMemberId: payload.staffMemberId,
         customerId: authenticatedCustomer?.id ?? null,

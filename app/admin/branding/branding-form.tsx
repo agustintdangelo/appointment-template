@@ -24,6 +24,7 @@ import { t, type AppLocale } from "@/lib/i18n";
 type BrandingFormProps = {
   businessName: string;
   businessDescription: string | null;
+  businessSlug: string;
   initialBranding: BrandingSettings;
   assets: BrandingFormAsset[];
   locale: AppLocale;
@@ -262,6 +263,7 @@ function hasUploadedFile(entry: FormDataEntryValue | null) {
 export default function BrandingForm({
   businessName,
   businessDescription,
+  businessSlug,
   initialBranding,
   assets,
   locale,
@@ -498,6 +500,7 @@ export default function BrandingForm({
       encType="multipart/form-data"
       className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] xl:items-start"
     >
+      <input type="hidden" name="businessSlug" value={businessSlug} />
       <input type="hidden" name="locale" value={locale} />
       <section data-locale-section="" data-locale-section-order="2" className="grid gap-5">
         <div className="admin-panel p-6">

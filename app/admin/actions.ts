@@ -25,15 +25,30 @@ import {
   t,
 } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
+import {
+  buildAdminBusinessPath,
+  buildPublicBusinessPath,
+  normalizeBusinessSlug,
+} from "@/lib/tenant";
 
 function getActionLocale(formData: FormData) {
   return normalizeLocale(getFormString(formData.get("locale")) || DEFAULT_LOCALE);
 }
 
-async function getAdminBusinessId(locale: unknown = DEFAULT_LOCALE) {
+async function getAdminBusiness(formData: FormData, locale: unknown = DEFAULT_LOCALE) {
+  const businessSlug = getOptionalFormString(formData.get("businessSlug"));
   const business = await prisma.business.findFirst({
+    where: businessSlug
+      ? {
+          slug: normalizeBusinessSlug(businessSlug),
+        }
+      : undefined,
+    orderBy: {
+      createdAt: "asc",
+    },
     select: {
       id: true,
+      slug: true,
     },
   });
 
@@ -41,7 +56,7 @@ async function getAdminBusinessId(locale: unknown = DEFAULT_LOCALE) {
     throw new Error(t(locale, "actions.seedDatabase"));
   }
 
-  return business.id;
+  return business;
 }
 
 function buildFieldErrors(error: z.ZodError) {
@@ -95,9 +110,27 @@ function handleEntityMutationError(
   return buildEntityActionState("error", fallbackMessage);
 }
 
-function revalidateAdminPaths(paths: string[]) {
-  for (const path of paths) {
-    revalidatePath(path);
+function revalidateTenantPaths({
+  businessSlug,
+  publicPaths = [],
+  adminPaths = [],
+}: {
+  businessSlug: string;
+  publicPaths?: string[];
+  adminPaths?: string[];
+}) {
+  revalidatePath("/");
+
+  for (const path of publicPaths) {
+    revalidatePath(path === "/" ? "/" : path);
+    revalidatePath(buildPublicBusinessPath(businessSlug, path === "/" ? "" : path));
+  }
+
+  for (const path of adminPaths) {
+    const legacyPath = path === "/" ? "/admin" : `/admin${path}`;
+
+    revalidatePath(legacyPath);
+    revalidatePath(buildAdminBusinessPath(businessSlug, path));
   }
 }
 
@@ -240,7 +273,7 @@ export async function upsertServiceAction(
   const locale = getActionLocale(formData);
 
   try {
-    const businessId = await getAdminBusinessId(locale);
+    const business = await getAdminBusiness(formData, locale);
     const parsedInput = buildServiceSchema(locale).parse({
       serviceId: getOptionalFormString(formData.get("serviceId")),
       name: getFormString(formData.get("name")),
@@ -256,7 +289,7 @@ export async function upsertServiceAction(
 
     const duplicateService = await prisma.service.findFirst({
       where: {
-        businessId,
+        businessId: business.id,
         slug,
         NOT: parsedInput.serviceId ? { id: parsedInput.serviceId } : undefined,
       },
@@ -272,7 +305,7 @@ export async function upsertServiceAction(
     }
 
     const serviceData = {
-      businessId,
+      businessId: business.id,
       name: parsedInput.name,
       slug,
       description: parsedInput.description ?? null,
@@ -284,6 +317,20 @@ export async function upsertServiceAction(
     };
 
     if (parsedInput.serviceId) {
+      const existingService = await prisma.service.findFirst({
+        where: {
+          id: parsedInput.serviceId,
+          businessId: business.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingService) {
+        return buildEntityActionState("error", t(locale, "actions.serviceIdMissing"));
+      }
+
       await prisma.service.update({
         where: {
           id: parsedInput.serviceId,
@@ -296,13 +343,11 @@ export async function upsertServiceAction(
       });
     }
 
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin/services",
-      "/admin/appointments",
-    ]);
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/services", "/book"],
+      adminPaths: ["/services", "/appointments"],
+    });
     return buildEntityActionState("success", t(locale, "actions.serviceSaved"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.serviceSaveError"));
@@ -316,6 +361,7 @@ export async function deleteServiceAction(
   const locale = getActionLocale(formData);
 
   try {
+    const business = await getAdminBusiness(formData, locale);
     const serviceId = getFormString(formData.get("serviceId"));
 
     if (!serviceId) {
@@ -325,6 +371,7 @@ export async function deleteServiceAction(
     const linkedAppointments = await prisma.appointment.count({
       where: {
         serviceId,
+        businessId: business.id,
       },
     });
 
@@ -335,19 +382,22 @@ export async function deleteServiceAction(
       );
     }
 
-    await prisma.service.delete({
+    const deletedService = await prisma.service.deleteMany({
       where: {
         id: serviceId,
+        businessId: business.id,
       },
     });
 
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin/services",
-      "/admin/appointments",
-    ]);
+    if (deletedService.count === 0) {
+      return buildEntityActionState("error", t(locale, "actions.serviceIdMissing"));
+    }
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/services", "/book"],
+      adminPaths: ["/services", "/appointments"],
+    });
     return buildEntityActionState("success", t(locale, "actions.serviceDeleted"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.serviceDeleteError"));
@@ -361,7 +411,7 @@ export async function upsertStaffMemberAction(
   const locale = getActionLocale(formData);
 
   try {
-    const businessId = await getAdminBusinessId(locale);
+    const business = await getAdminBusiness(formData, locale);
     const parsedInput = buildStaffSchema(locale).parse({
       staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
       name: getFormString(formData.get("name")),
@@ -375,7 +425,7 @@ export async function upsertStaffMemberAction(
 
     const duplicateStaffMember = await prisma.staffMember.findFirst({
       where: {
-        businessId,
+        businessId: business.id,
         slug,
         NOT: parsedInput.staffMemberId ? { id: parsedInput.staffMemberId } : undefined,
       },
@@ -391,7 +441,7 @@ export async function upsertStaffMemberAction(
     }
 
     const staffMemberData = {
-      businessId,
+      businessId: business.id,
       name: parsedInput.name,
       slug,
       title: parsedInput.title ?? null,
@@ -401,6 +451,20 @@ export async function upsertStaffMemberAction(
     };
 
     if (parsedInput.staffMemberId) {
+      const existingStaffMember = await prisma.staffMember.findFirst({
+        where: {
+          id: parsedInput.staffMemberId,
+          businessId: business.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingStaffMember) {
+        return buildEntityActionState("error", t(locale, "actions.staffIdMissing"));
+      }
+
       await prisma.staffMember.update({
         where: {
           id: parsedInput.staffMemberId,
@@ -413,14 +477,11 @@ export async function upsertStaffMemberAction(
       });
     }
 
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin/staff",
-      "/admin/appointments",
-      "/admin/calendar",
-    ]);
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/services", "/book"],
+      adminPaths: ["/staff", "/appointments", "/calendar"],
+    });
     return buildEntityActionState("success", t(locale, "actions.staffSaved"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.staffSaveError"));
@@ -434,6 +495,7 @@ export async function deleteStaffMemberAction(
   const locale = getActionLocale(formData);
 
   try {
+    const business = await getAdminBusiness(formData, locale);
     const staffMemberId = getFormString(formData.get("staffMemberId"));
 
     if (!staffMemberId) {
@@ -443,6 +505,7 @@ export async function deleteStaffMemberAction(
     const linkedAppointments = await prisma.appointment.count({
       where: {
         staffMemberId,
+        businessId: business.id,
       },
     });
 
@@ -453,20 +516,22 @@ export async function deleteStaffMemberAction(
       );
     }
 
-    await prisma.staffMember.delete({
+    const deletedStaffMember = await prisma.staffMember.deleteMany({
       where: {
         id: staffMemberId,
+        businessId: business.id,
       },
     });
 
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin/staff",
-      "/admin/appointments",
-      "/admin/calendar",
-    ]);
+    if (deletedStaffMember.count === 0) {
+      return buildEntityActionState("error", t(locale, "actions.staffIdMissing"));
+    }
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/services", "/book"],
+      adminPaths: ["/staff", "/appointments", "/calendar"],
+    });
     return buildEntityActionState("success", t(locale, "actions.staffDeleted"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.staffDeleteError"));
@@ -480,7 +545,7 @@ export async function upsertBusinessHoursAction(
   const locale = getActionLocale(formData);
 
   try {
-    const businessId = await getAdminBusinessId(locale);
+    const business = await getAdminBusiness(formData, locale);
     const openTimes = formData.getAll("openTime").map((value) => getFormString(value));
     const closeTimes = formData.getAll("closeTime").map((value) => getFormString(value));
     const periods = openTimes.map((openTime, index) => ({
@@ -535,7 +600,7 @@ export async function upsertBusinessHoursAction(
           transaction.businessHoursDay.upsert({
             where: {
               businessId_dayOfWeek: {
-                businessId,
+                businessId: business.id,
                 dayOfWeek,
               },
             },
@@ -543,7 +608,7 @@ export async function upsertBusinessHoursAction(
               isClosed: dayOfWeek === parsedInput.dayOfWeek ? parsedInput.isClosed : false,
             },
             create: {
-              businessId,
+              businessId: business.id,
               dayOfWeek,
               isClosed: dayOfWeek === parsedInput.dayOfWeek ? parsedInput.isClosed : false,
             },
@@ -553,7 +618,7 @@ export async function upsertBusinessHoursAction(
 
       await transaction.businessHours.deleteMany({
         where: {
-          businessId,
+          businessId: business.id,
           dayOfWeek: {
             in: daysToReplace,
           },
@@ -564,7 +629,7 @@ export async function upsertBusinessHoursAction(
         await transaction.businessHours.createMany({
           data: daysToReplace.flatMap((dayOfWeek) =>
             sortedPeriods.map((period) => ({
-              businessId,
+              businessId: business.id,
               dayOfWeek,
               openTime: period.openTime,
               closeTime: period.closeTime,
@@ -574,7 +639,11 @@ export async function upsertBusinessHoursAction(
       }
     });
 
-    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/book"],
+      adminPaths: ["/calendar"],
+    });
     return buildEntityActionState(
       "success",
       copyToDayOfWeek.length > 0
@@ -597,7 +666,7 @@ export async function upsertBlackoutDateAction(
   const locale = getActionLocale(formData);
 
   try {
-    const businessId = await getAdminBusinessId(locale);
+    const business = await getAdminBusiness(formData, locale);
     const parsedInput = buildBlackoutSchema(locale).parse({
       blackoutDateId: getOptionalFormString(formData.get("blackoutDateId")),
       staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
@@ -606,8 +675,26 @@ export async function upsertBlackoutDateAction(
       reason: getOptionalFormString(formData.get("reason")),
     });
 
+    if (parsedInput.staffMemberId) {
+      const staffMember = await prisma.staffMember.findFirst({
+        where: {
+          id: parsedInput.staffMemberId,
+          businessId: business.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!staffMember) {
+        return buildEntityActionState("error", t(locale, "actions.staffIdMissing"), {
+          staffMemberId: t(locale, "actions.staffIdMissing"),
+        });
+      }
+    }
+
     const blackoutData = {
-      businessId,
+      businessId: business.id,
       staffMemberId: parsedInput.staffMemberId ?? null,
       startsAt: parsedInput.startsAtDate,
       endsAt: parsedInput.endsAtDate,
@@ -615,6 +702,20 @@ export async function upsertBlackoutDateAction(
     };
 
     if (parsedInput.blackoutDateId) {
+      const existingBlackoutDate = await prisma.blackoutDate.findFirst({
+        where: {
+          id: parsedInput.blackoutDateId,
+          businessId: business.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingBlackoutDate) {
+        return buildEntityActionState("error", t(locale, "actions.blackoutIdMissing"));
+      }
+
       await prisma.blackoutDate.update({
         where: {
           id: parsedInput.blackoutDateId,
@@ -627,7 +728,11 @@ export async function upsertBlackoutDateAction(
       });
     }
 
-    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/book"],
+      adminPaths: ["/calendar"],
+    });
     return buildEntityActionState("success", t(locale, "actions.blackoutSaved"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.blackoutSaveError"));
@@ -641,19 +746,29 @@ export async function deleteBlackoutDateAction(
   const locale = getActionLocale(formData);
 
   try {
+    const business = await getAdminBusiness(formData, locale);
     const blackoutDateId = getFormString(formData.get("blackoutDateId"));
 
     if (!blackoutDateId) {
       return buildEntityActionState("error", t(locale, "actions.blackoutIdMissing"));
     }
 
-    await prisma.blackoutDate.delete({
+    const deletedBlackoutDate = await prisma.blackoutDate.deleteMany({
       where: {
         id: blackoutDateId,
+        businessId: business.id,
       },
     });
 
-    revalidateAdminPaths(["/admin/calendar", "/book"]);
+    if (deletedBlackoutDate.count === 0) {
+      return buildEntityActionState("error", t(locale, "actions.blackoutIdMissing"));
+    }
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/book"],
+      adminPaths: ["/calendar"],
+    });
     return buildEntityActionState("success", t(locale, "actions.blackoutDeleted"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.blackoutDeleteError"));
@@ -674,7 +789,7 @@ export async function updateDefaultLocaleAction(
   const locale = getActionLocale(formData);
 
   try {
-    const businessId = await getAdminBusinessId(locale);
+    const business = await getAdminBusiness(formData, locale);
     const parsedInput = buildLocalizationSchema(locale).parse({
       defaultLocale: getFormString(formData.get("defaultLocale")),
     });
@@ -682,7 +797,7 @@ export async function updateDefaultLocaleAction(
 
     await prisma.business.update({
       where: {
-        id: businessId,
+        id: business.id,
       },
       data: {
         defaultLocale: nextLocale,
@@ -690,18 +805,11 @@ export async function updateDefaultLocaleAction(
     });
 
     revalidateTag("public-branding", "max");
-    revalidateAdminPaths([
-      "/",
-      "/services",
-      "/book",
-      "/admin",
-      "/admin/calendar",
-      "/admin/appointments",
-      "/admin/services",
-      "/admin/staff",
-      "/admin/branding",
-      "/admin/settings",
-    ]);
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/services", "/book"],
+      adminPaths: ["/", "/calendar", "/appointments", "/services", "/staff", "/branding", "/settings"],
+    });
 
     return buildEntityActionState("success", t(nextLocale, "actions.languageSaved"));
   } catch (error) {

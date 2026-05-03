@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import LocalizedSection from "@/app/components/localized-section";
 import { adminNavItems } from "@/lib/admin";
 import { DEFAULT_LOCALE, t, type AppLocale } from "@/lib/i18n";
+import { buildAdminBusinessPath, buildPublicBusinessPath } from "@/lib/tenant";
 
 type SearchParamValue = string | string[] | undefined;
 type SearchParamsRecord = Record<string, SearchParamValue>;
@@ -115,11 +116,25 @@ export function AdminEmptyState({
   );
 }
 
-export function AdminNav({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
+function getTenantAdminHref(businessSlug: string | undefined, href: string) {
+  if (!businessSlug) {
+    return href;
+  }
+
+  return buildAdminBusinessPath(businessSlug, href.replace("/admin", ""));
+}
+
+export function AdminNav({
+  businessSlug,
+  locale = DEFAULT_LOCALE,
+}: {
+  businessSlug?: string;
+  locale?: AppLocale;
+}) {
   return (
     <nav className="flex flex-wrap gap-3">
       <Link
-        href="/"
+        href={businessSlug ? buildPublicBusinessPath(businessSlug) : "/"}
         className="admin-button-secondary min-w-[9.5rem] gap-2 text-sm font-medium"
       >
         <svg
@@ -140,7 +155,7 @@ export function AdminNav({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
       {adminNavItems.map((item) => (
         <Link
           key={item.href}
-          href={item.href}
+          href={getTenantAdminHref(businessSlug, item.href)}
           className="admin-button-secondary min-w-[7.5rem] text-sm font-medium"
         >
           {t(locale, item.labelKey)}

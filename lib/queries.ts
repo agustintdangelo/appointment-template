@@ -2,9 +2,60 @@ import { unstable_cache } from "next/cache";
 
 import { normalizeBusinessHoursDays } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
+import { normalizeBusinessSlug } from "@/lib/tenant";
 
 export async function getPrimaryBusiness() {
   return prisma.business.findFirst({
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      defaultLocale: true,
+      phone: true,
+      email: true,
+      description: true,
+      heroHeadline: true,
+      heroSubheadline: true,
+      services: {
+        where: {
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          durationMinutes: true,
+          bufferMinutes: true,
+          priceCents: true,
+        },
+      },
+      staffMembers: {
+        where: {
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          title: true,
+          bio: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getBusinessBySlug(businessSlug: string) {
+  return prisma.business.findUnique({
+    where: {
+      slug: normalizeBusinessSlug(businessSlug),
+    },
     select: {
       id: true,
       name: true,
@@ -48,8 +99,16 @@ export async function getPrimaryBusiness() {
 }
 
 const getCachedPublicBranding = unstable_cache(
-  async () => {
+  async (businessSlug?: string) => {
     return prisma.business.findFirst({
+      where: businessSlug
+        ? {
+            slug: normalizeBusinessSlug(businessSlug),
+          }
+        : undefined,
+      orderBy: {
+        createdAt: "asc",
+      },
       select: {
         id: true,
         name: true,
@@ -84,14 +143,22 @@ const getCachedPublicBranding = unstable_cache(
   },
 );
 
-export async function getPublicBranding() {
-  return getCachedPublicBranding();
+export async function getPublicBranding(businessSlug?: string) {
+  return getCachedPublicBranding(businessSlug);
 }
 
-export async function getAppointmentConfirmation(appointmentId: string) {
-  return prisma.appointment.findUnique({
+export async function getAppointmentConfirmation(
+  appointmentId: string,
+  businessSlug?: string,
+) {
+  return prisma.appointment.findFirst({
     where: {
       id: appointmentId,
+      business: businessSlug
+        ? {
+            slug: normalizeBusinessSlug(businessSlug),
+          }
+        : undefined,
     },
     select: {
       id: true,
@@ -132,14 +199,8 @@ export async function getAppointmentConfirmation(appointmentId: string) {
   });
 }
 
-export async function getAdminAppointments() {
-  const business = await prisma.business.findFirst({
-    select: {
-      id: true,
-      name: true,
-      defaultLocale: true,
-    },
-  });
+export async function getAdminAppointments(businessSlug?: string) {
+  const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;
@@ -182,8 +243,16 @@ export async function getAdminAppointments() {
   };
 }
 
-export async function getAdminBusinessSummary() {
+export async function getAdminBusinessSummary(businessSlug?: string) {
   return prisma.business.findFirst({
+    where: businessSlug
+      ? {
+          slug: normalizeBusinessSlug(businessSlug),
+        }
+      : undefined,
+    orderBy: {
+      createdAt: "asc",
+    },
     select: {
       id: true,
       name: true,
@@ -196,8 +265,16 @@ export async function getAdminBusinessSummary() {
   });
 }
 
-export async function getAdminBranding() {
+export async function getAdminBranding(businessSlug?: string) {
   return prisma.business.findFirst({
+    where: businessSlug
+      ? {
+          slug: normalizeBusinessSlug(businessSlug),
+        }
+      : undefined,
+    orderBy: {
+      createdAt: "asc",
+    },
     select: {
       id: true,
       name: true,
@@ -226,8 +303,8 @@ export async function getAdminBranding() {
   });
 }
 
-export async function getAdminServices() {
-  const business = await getAdminBusinessSummary();
+export async function getAdminServices(businessSlug?: string) {
+  const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;
@@ -262,8 +339,8 @@ export async function getAdminServices() {
   };
 }
 
-export async function getAdminStaffMembers() {
-  const business = await getAdminBusinessSummary();
+export async function getAdminStaffMembers(businessSlug?: string) {
+  const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;
@@ -298,8 +375,8 @@ export async function getAdminStaffMembers() {
   };
 }
 
-export async function getAdminBusinessHours() {
-  const business = await getAdminBusinessSummary();
+export async function getAdminBusinessHours(businessSlug?: string) {
+  const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;
@@ -339,8 +416,8 @@ export async function getAdminBusinessHours() {
   };
 }
 
-export async function getAdminCalendar() {
-  const business = await getAdminBusinessSummary();
+export async function getAdminCalendar(businessSlug?: string) {
+  const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;

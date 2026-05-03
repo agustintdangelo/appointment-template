@@ -27,11 +27,15 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+The root URL is now the platform landing page. The seeded demo business loads at
+`http://localhost:3000/studio-hours-demo`.
+
 ## Current MVP slice
 
 - Landing page
 - Public services page
 - Booking flow with live availability
+- Path-based multi-tenant platform routing
 - Optional Google / Apple sign-in for public customers
 - Guest booking with required full name, email, and phone
 - Appointment creation
@@ -45,14 +49,16 @@ Open `http://localhost:3000`.
 ## Useful routes
 
 - `/`
-- `/services`
-- `/book`
-- `/admin/appointments`
-- `/admin/calendar`
-- `/admin/branding`
-- `/admin/services`
-- `/admin/staff`
-- `/admin/settings`
+- `/studio-hours-demo`
+- `/studio-hours-demo/services`
+- `/studio-hours-demo/book`
+- `/studio-hours-demo/book/confirmation/[appointmentId]`
+- `/admin/studio-hours-demo/appointments`
+- `/admin/studio-hours-demo/calendar`
+- `/admin/studio-hours-demo/branding`
+- `/admin/studio-hours-demo/services`
+- `/admin/studio-hours-demo/staff`
+- `/admin/studio-hours-demo/settings`
 - `/api/availability`
 - `/api/appointments`
 - `/api/auth/[...nextauth]`
@@ -82,10 +88,11 @@ Public customers can book as guests or sign in with Google / Apple during the bo
 
 - Guest bookings require full name, email, and phone.
 - Authenticated bookings are associated with a `Customer` record derived from the server-side NextAuth session.
-- The booking form keeps selected service, staff, date, time, and entered contact details in session storage while the visitor completes OAuth.
+- The booking form keeps selected service, staff, date, time, and entered contact details in slug-scoped session storage while the visitor completes OAuth.
 - Google and Apple profile details prefill name/email when available, but customers can edit contact fields before confirming.
 - The appointment stores contact email/phone for future confirmation delivery and a hashed management token foundation for future secure cancellation/modification links.
 - Cancellation, modification, rescheduling, and customer "My appointments" pages are intentionally not implemented in this slice.
+- Apple Sign-In is intended to use one shared platform callback URL, so many client businesses can live under one platform domain without registering a separate Apple website URL per client.
 
 Required environment variables when enabling OAuth:
 
@@ -101,9 +108,21 @@ APPLE_CLIENT_SECRET="replace-with-apple-client-secret-jwt"
 OAuth callback URLs:
 
 - Google: `http://localhost:3000/api/auth/callback/google`
-- Apple: `http://localhost:3000/api/auth/callback/apple`
+- Apple production: `https://yourplatform.com/api/auth/callback/apple`
 
-For production, replace the host with the deployed domain. Apple Sign-In also requires an Apple Developer Service ID, an enabled web return URL, and a client-secret JWT generated from the Apple team/key configuration.
+For production, replace `NEXTAUTH_URL` with the deployed platform domain, for example `https://yourplatform.com`. Apple Sign-In should not be configured against plain localhost; deploy the app or expose one stable HTTPS platform domain first. Apple also requires a Service ID, an enabled web return URL, and a client-secret JWT generated from the Apple team/key configuration.
+
+## Multi-tenant platform routing
+
+Businesses are resolved by `Business.slug`.
+
+- Public home: `/[businessSlug]`
+- Public services: `/[businessSlug]/services`
+- Public booking: `/[businessSlug]/book`
+- Admin workspace: `/admin/[businessSlug]`
+- Admin calendar: `/admin/[businessSlug]/calendar`
+
+Legacy single-business URLs such as `/book`, `/services`, and `/admin/calendar` redirect to the first seeded business when one exists, so local development still opens the demo quickly.
 
 ## Confirmation delivery foundation
 
