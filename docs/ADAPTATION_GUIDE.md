@@ -62,7 +62,9 @@ Keep:
 - the default language can be changed from `/admin/[businessSlug]/settings`; Spanish (`es`) is the safe fallback if no locale is configured
 - calendar-based scheduling adjustments, blackout rules, and Business periods can be managed from `/admin/[businessSlug]/calendar`
 - logos and favicon are stored in the database and served through the app
+- the customer-facing homepage is the booking flow at `/[businessSlug]`; do not add a separate public Home or Services page unless the product direction changes
 - public customers can always book as guests with full name, email, and phone
+- public customers can choose any staff or a specific staff preference; keep active staff ordering meaningful because it decides assignment for any-staff slots
 - optional Google / Apple sign-in can be enabled per deployment through OAuth environment variables
 - customer OAuth is configured once for the platform domain, not once per client business path
 - authenticated bookings link to a reusable `Customer` record, while guest contact details stay on the appointment

@@ -1,8 +1,7 @@
 "use client";
 
 import { addDays, format } from "date-fns";
-import { getProviders, signIn, signOut, useSession, type ClientSafeProvider } from "next-auth/react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { isValidGenericPhoneNumber } from "@/lib/contact";
@@ -38,6 +37,8 @@ type AvailabilitySlot = {
   startAt: string;
   endAt: string;
   label: string;
+  assignedStaffMemberId: string;
+  staffMemberName: string;
 };
 
 type BookingFormProps = {
@@ -47,21 +48,9 @@ type BookingFormProps = {
   locale: AppLocale;
 };
 
-type ContactField = "customerName" | "customerEmail" | "customerPhone";
-type BookingFieldErrors = Partial<Record<ContactField, string>>;
-
-type SavedBookingState = {
-  selectedServiceId?: string;
-  selectedStaffId?: string;
-  selectedDate?: string;
-  selectedSlot?: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  notes?: string;
-};
-
-const BOOKING_STATE_STORAGE_KEY_PREFIX = "appointment-public-booking-state";
+type BookingFieldErrors = Partial<
+  Record<"customerName" | "customerEmail" | "customerPhone", string>
+>;
 
 function getInitialBookingDate() {
   const date = addDays(new Date(), 1);
@@ -73,30 +62,15 @@ function getInitialBookingDate() {
   return format(date, "yyyy-MM-dd");
 }
 
-function isValidDateInput(value: string | undefined): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+function formatSlotTime(value: string, locale: AppLocale) {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-AR" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function isValidEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function getBookingStateStorageKey(businessSlug: string) {
-  return `${BOOKING_STATE_STORAGE_KEY_PREFIX}:${businessSlug}`;
-}
-
-function readSavedBookingState(businessSlug: string) {
-  try {
-    const rawState = window.sessionStorage.getItem(getBookingStateStorageKey(businessSlug));
-
-    if (!rawState) {
-      return null;
-    }
-
-    return JSON.parse(rawState) as SavedBookingState;
-  } catch {
-    return null;
-  }
 }
 
 export default function BookingForm({
@@ -107,13 +81,10 @@ export default function BookingForm({
 }: BookingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status: sessionStatus } = useSession();
-  const [authProviders, setAuthProviders] = useState<Record<string, ClientSafeProvider> | null>(
-    null,
-  );
   const [isSubmitting, startTransition] = useTransition();
-  const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id ?? "");
-  const [selectedStaffId, setSelectedStaffId] = useState(staffMembers[0]?.id ?? "");
+  const [hasSelectedBranch, setHasSelectedBranch] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => getInitialBookingDate());
   const [selectedSlot, setSelectedSlot] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -126,55 +97,23 @@ export default function BookingForm({
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<BookingFieldErrors>({});
   const [availabilityRefreshKey, setAvailabilityRefreshKey] = useState(0);
-  const [hasRestoredBookingState, setHasRestoredBookingState] = useState(false);
-  const preservedSlotRef = useRef<string | null>(null);
-  const contactFieldsRef = useRef<HTMLDivElement | null>(null);
 
   const selectedService = services.find((service) => service.id === selectedServiceId);
   const selectedStaff = staffMembers.find((staffMember) => staffMember.id === selectedStaffId);
-  const isSignedIn = sessionStatus === "authenticated";
-  const signedInLabel = session?.user?.name ?? session?.user?.email ?? null;
-  const authError = searchParams.get("error");
-  const googleAvailable = Boolean(authProviders?.google);
-  const appleAvailable = Boolean(authProviders?.apple);
-  const authProvidersLoaded = authProviders !== null;
-  const hasAnyAuthProvider = googleAvailable || appleAvailable;
+  const selectedSlotDetails = slots.find((slot) => slot.startAt === selectedSlot);
+  const selectedSlotLabel = selectedSlotDetails
+    ? formatSlotTime(selectedSlotDetails.startAt, locale)
+    : undefined;
+  const hasRequiredBookingFields =
+    Boolean(selectedServiceId) &&
+    Boolean(selectedDate) &&
+    Boolean(selectedSlot) &&
+    customerName.trim().length > 0 &&
+    customerEmail.trim().length > 0 &&
+    customerPhone.trim().length > 0;
+  const confirmDisabled = isSubmitting || !hasRequiredBookingFields;
 
   useEffect(() => {
-    const savedState = readSavedBookingState(business.slug);
-
-    if (savedState) {
-      const savedServiceId = services.some((service) => service.id === savedState.selectedServiceId)
-        ? savedState.selectedServiceId
-        : services[0]?.id;
-      const savedStaffId = staffMembers.some((staffMember) => staffMember.id === savedState.selectedStaffId)
-        ? savedState.selectedStaffId
-        : staffMembers[0]?.id;
-
-      setSelectedServiceId(savedServiceId ?? "");
-      setSelectedStaffId(savedStaffId ?? "");
-      const savedDate = savedState.selectedDate;
-
-      setSelectedDate(isValidDateInput(savedDate) ? savedDate : getInitialBookingDate());
-      setCustomerName(savedState.customerName ?? "");
-      setCustomerEmail(savedState.customerEmail ?? "");
-      setCustomerPhone(savedState.customerPhone ?? "");
-      setNotes(savedState.notes ?? "");
-
-      if (savedState.selectedSlot) {
-        preservedSlotRef.current = savedState.selectedSlot;
-        setSelectedSlot(savedState.selectedSlot);
-      }
-    }
-
-    setHasRestoredBookingState(true);
-  }, [business.slug, services, staffMembers]);
-
-  useEffect(() => {
-    if (!hasRestoredBookingState) {
-      return;
-    }
-
     const requestedSlug = searchParams.get("service");
 
     if (!requestedSlug) {
@@ -186,88 +125,13 @@ export default function BookingForm({
     if (matchingService && matchingService.id !== selectedServiceId) {
       setSelectedServiceId(matchingService.id);
     }
-  }, [hasRestoredBookingState, searchParams, selectedServiceId, services]);
+  }, [searchParams, selectedServiceId, services]);
 
   useEffect(() => {
-    if (!hasRestoredBookingState) {
-      return;
-    }
-
-    const stateToSave: SavedBookingState = {
-      selectedServiceId,
-      selectedStaffId,
-      selectedDate,
-      selectedSlot,
-      customerName,
-      customerEmail,
-      customerPhone,
-      notes,
-    };
-
-    window.sessionStorage.setItem(
-      getBookingStateStorageKey(business.slug),
-      JSON.stringify(stateToSave),
-    );
-  }, [
-    business.slug,
-    customerEmail,
-    customerName,
-    customerPhone,
-    hasRestoredBookingState,
-    notes,
-    selectedDate,
-    selectedServiceId,
-    selectedSlot,
-    selectedStaffId,
-  ]);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function loadAuthProviders() {
-      const providers = await getProviders();
-
-      if (!isCancelled) {
-        setAuthProviders((providers ?? {}) as Record<string, ClientSafeProvider>);
-      }
-    }
-
-    void loadAuthProviders();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (sessionStatus !== "authenticated") {
-      return;
-    }
-
-    const profileName = session.user?.name?.trim();
-    const profileEmail = session.user?.email?.trim();
-
-    if (profileName) {
-      setCustomerName((currentValue) => currentValue.trim() || profileName);
-    }
-
-    if (profileEmail) {
-      setCustomerEmail((currentValue) => currentValue.trim() || profileEmail);
-    }
-  }, [sessionStatus, session?.user?.email, session?.user?.name]);
-
-  useEffect(() => {
-    const restoredSlot = preservedSlotRef.current;
-
-    if (restoredSlot) {
-      preservedSlotRef.current = null;
-    } else {
-      setSelectedSlot("");
-    }
-
+    setSelectedSlot("");
     setAvailabilityError(null);
 
-    if (!selectedServiceId || !selectedStaffId || !selectedDate) {
+    if (!selectedServiceId || !selectedDate) {
       setSlots([]);
       return;
     }
@@ -281,10 +145,13 @@ export default function BookingForm({
         const params = new URLSearchParams({
           businessSlug: business.slug,
           serviceId: selectedServiceId,
-          staffMemberId: selectedStaffId,
           date: selectedDate,
           locale,
         });
+
+        if (selectedStaffId) {
+          params.set("staffMemberId", selectedStaffId);
+        }
 
         const response = await fetch(`/api/availability?${params.toString()}`, {
           cache: "no-store",
@@ -299,14 +166,7 @@ export default function BookingForm({
         }
 
         if (!isCancelled) {
-          const nextSlots = payload.slots ?? [];
-
-          setSlots(nextSlots);
-          setSelectedSlot((currentSlot) =>
-            currentSlot && nextSlots.some((slot) => slot.startAt === currentSlot)
-              ? currentSlot
-              : "",
-          );
+          setSlots(payload.slots ?? []);
         }
       } catch (error) {
         if (!isCancelled) {
@@ -354,7 +214,7 @@ export default function BookingForm({
     return nextFieldErrors;
   }
 
-  function clearFieldError(field: ContactField) {
+  function clearFieldError(field: keyof BookingFieldErrors) {
     setFieldErrors((currentErrors) => {
       if (!currentErrors[field]) {
         return currentErrors;
@@ -366,24 +226,6 @@ export default function BookingForm({
     });
   }
 
-  function persistCurrentBookingState() {
-    const stateToSave: SavedBookingState = {
-      selectedServiceId,
-      selectedStaffId,
-      selectedDate,
-      selectedSlot,
-      customerName,
-      customerEmail,
-      customerPhone,
-      notes,
-    };
-
-    window.sessionStorage.setItem(
-      getBookingStateStorageKey(business.slug),
-      JSON.stringify(stateToSave),
-    );
-  }
-
   async function submitBooking() {
     const response = await fetch("/api/appointments", {
       method: "POST",
@@ -393,7 +235,7 @@ export default function BookingForm({
       body: JSON.stringify({
         businessSlug: business.slug,
         serviceId: selectedServiceId,
-        staffMemberId: selectedStaffId,
+        staffMemberId: selectedStaffId || undefined,
         date: selectedDate,
         slotStart: selectedSlot,
         locale,
@@ -421,7 +263,6 @@ export default function BookingForm({
       return;
     }
 
-    window.sessionStorage.removeItem(getBookingStateStorageKey(business.slug));
     router.push(
       buildPublicBusinessPath(business.slug, `/book/confirmation/${payload.appointmentId}`),
     );
@@ -431,8 +272,8 @@ export default function BookingForm({
     event.preventDefault();
     setBookingError(null);
 
-    if (!selectedSlot) {
-      setBookingError(t(locale, "public.bookingForm.chooseSlot"));
+    if (!hasRequiredBookingFields) {
+      setBookingError(t(locale, "public.bookingForm.completeRequiredFields"));
       return;
     }
 
@@ -449,26 +290,44 @@ export default function BookingForm({
     });
   }
 
-  function handleContinueAsGuest() {
-    persistCurrentBookingState();
-    contactFieldsRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  function retryAvailability() {
+    setAvailabilityError(null);
+    setAvailabilityRefreshKey((currentValue) => currentValue + 1);
   }
 
-  function handleSignIn(provider: "google" | "apple") {
-    persistCurrentBookingState();
-    void signIn(provider, {
-      callbackUrl: `${buildPublicBusinessPath(business.slug, "/book")}?auth=customer`,
-    });
-  }
+  if (!hasSelectedBranch) {
+    return (
+      <section
+        aria-labelledby="branch-heading"
+        className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-6 sm:p-8"
+      >
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+            {t(locale, "public.bookingForm.branchesEyebrow")}
+          </p>
+          <h2 id="branch-heading" className="font-display text-4xl">
+            {t(locale, "public.bookingForm.branchesTitle")}
+          </h2>
+          <p className="max-w-2xl text-sm leading-7 text-muted">
+            {t(locale, "public.bookingForm.branchesDescription")}
+          </p>
+        </div>
 
-  function handleSignOut() {
-    persistCurrentBookingState();
-    void signOut({
-      callbackUrl: `${buildPublicBusinessPath(business.slug, "/book")}?auth=guest`,
-    });
+        <button
+          type="button"
+          onClick={() => setHasSelectedBranch(true)}
+          className="mt-6 w-full rounded-[1.5rem] border border-accent bg-surface p-5 text-left transition hover:bg-card focus:outline-none focus:ring-2 focus:ring-accent"
+        >
+          <span className="block text-sm font-semibold uppercase tracking-[0.24em] text-muted">
+            {t(locale, "public.bookingForm.availableBranch")}
+          </span>
+          <span className="mt-2 block font-display text-3xl">{business.name}</span>
+          <span className="mt-2 block text-sm leading-7 text-muted">
+            {t(locale, "public.bookingForm.liveAvailabilityBranch")}
+          </span>
+        </button>
+      </section>
+    );
   }
 
   return (
@@ -478,259 +337,271 @@ export default function BookingForm({
         onSubmit={handleSubmit}
         data-locale-section=""
         data-locale-section-order="2"
-        className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-8"
+        className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-6 sm:p-8"
       >
-        <div className="grid gap-5 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "common.service")}
-            <select
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-              value={selectedServiceId}
-              onChange={(event) => setSelectedServiceId(event.target.value)}
-            >
-              {services.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "common.staffMember")}
-            <select
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-              value={selectedStaffId}
-              onChange={(event) => setSelectedStaffId(event.target.value)}
-            >
-              {staffMembers.map((staffMember) => (
-                <option key={staffMember.id} value={staffMember.id}>
-                  {staffMember.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium md:col-span-2">
-            {t(locale, "common.date")}
-            <input
-              type="date"
-              min={format(new Date(), "yyyy-MM-dd")}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="mt-8">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="font-display text-3xl">
-              {t(locale, "public.bookingForm.availableSlots")}
+        <section aria-labelledby="service-heading">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+              {t(locale, "public.bookingForm.stepOne")}
+            </p>
+            <h2 id="service-heading" className="font-display text-4xl">
+              {t(locale, "public.bookingForm.serviceStepTitle")}
             </h2>
-            {isLoadingSlots ? (
-              <p className="text-sm text-muted">{t(locale, "public.bookingForm.checking")}</p>
-            ) : null}
           </div>
 
-          {availabilityError ? (
-            <p className="mt-4 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
-              {availabilityError}
-            </p>
-          ) : null}
+          <div className="mt-5 grid gap-3">
+            {services.map((service) => {
+              const selected = selectedServiceId === service.id;
 
-          {!availabilityError && !isLoadingSlots && slots.length === 0 ? (
-            <p className="mt-4 rounded-2xl bg-surface px-4 py-3 text-sm text-muted">
-              {t(locale, "public.bookingForm.noSlots")}
-            </p>
-          ) : null}
-
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {slots.map((slot) => (
-              <button
-                key={slot.startAt}
-                type="button"
-                onClick={() => setSelectedSlot(slot.startAt)}
-                className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                  selectedSlot === slot.startAt
-                    ? "brand-accent-fill border-accent"
-                    : "border-border bg-surface hover:border-accent"
-                }`}
-              >
-                {slot.label}
-              </button>
-            ))}
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSelectedServiceId(service.id)}
+                  className={`rounded-[1.25rem] border p-5 text-left transition ${
+                    selected
+                      ? "border-accent bg-highlight-surface text-highlight-foreground"
+                      : "border-border bg-surface hover:border-accent"
+                  }`}
+                >
+                  <span className="block text-lg font-semibold">{service.name}</span>
+                  {service.description ? (
+                    <span className="mt-2 block text-sm leading-6 opacity-80">
+                      {service.description}
+                    </span>
+                  ) : null}
+                  <span className="mt-3 flex flex-wrap gap-3 text-sm opacity-80">
+                    <span>
+                      {formatServiceTiming(
+                        service.durationMinutes,
+                        service.bufferMinutes,
+                        locale,
+                      )}
+                    </span>
+                    <span>{formatMoney(service.priceCents, locale)}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-
-        <section className="mt-8 rounded-[1.5rem] border border-border bg-surface/80 p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold">
-                {t(locale, "public.bookingForm.signInOptional")}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {t(locale, "public.bookingForm.signInOptionalDescription")}
-              </p>
-            </div>
-
-            {isSignedIn ? (
-              <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">
-                <p className="font-semibold">
-                  {t(locale, "public.bookingForm.signedInAs", {
-                    value: signedInLabel ?? t(locale, "common.customer"),
-                  })}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="mt-2 text-sm font-semibold text-muted transition hover:text-foreground"
-                >
-                  {t(locale, "public.bookingForm.signOut")}
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {authError ? (
-            <p className="mt-4 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
-              {t(locale, "public.bookingForm.signInError")}
-            </p>
-          ) : null}
-
-          {!isSignedIn ? (
-            <>
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={handleContinueAsGuest}
-                  className="min-h-14 rounded-2xl border border-accent bg-card px-4 py-3 text-sm font-semibold transition hover:bg-surface"
-                >
-                  {t(locale, "public.bookingForm.continueAsGuest")}
-                </button>
-                <button
-                  type="button"
-                  disabled={!authProvidersLoaded || !googleAvailable}
-                  onClick={() => handleSignIn("google")}
-                  className="min-h-14 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
-                >
-                  {t(locale, "public.bookingForm.signInWithGoogle")}
-                </button>
-                <button
-                  type="button"
-                  disabled={!authProvidersLoaded || !appleAvailable}
-                  onClick={() => handleSignIn("apple")}
-                  className="min-h-14 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-55"
-                >
-                  {t(locale, "public.bookingForm.signInWithApple")}
-                </button>
-              </div>
-
-              {authProvidersLoaded && !hasAnyAuthProvider ? (
-                <p className="mt-3 text-sm leading-6 text-muted">
-                  {t(locale, "public.bookingForm.signInNotConfigured")}
-                </p>
-              ) : null}
-            </>
-          ) : null}
         </section>
 
-        <div ref={contactFieldsRef} className="mt-8 grid gap-5 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <h2 className="font-display text-3xl">
-              {t(locale, "public.bookingForm.contactInformation")}
+        <section aria-labelledby="staff-heading" className="mt-8">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+              {t(locale, "public.bookingForm.stepTwo")}
+            </p>
+            <h2 id="staff-heading" className="font-display text-4xl">
+              {t(locale, "public.bookingForm.staffStepTitle")}
             </h2>
-            <p id="contact-information-help" className="mt-2 text-sm leading-6 text-muted">
-              {t(locale, "public.bookingForm.contactInformationHelp")}
+            <p className="text-sm leading-7 text-muted">
+              {t(locale, "public.bookingForm.staffStepDescription")}
             </p>
           </div>
 
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "public.bookingForm.fullName")}
-            <input
-              required
-              autoComplete="name"
-              aria-invalid={Boolean(fieldErrors.customerName)}
-              aria-describedby={fieldErrors.customerName ? "customer-name-error" : undefined}
-              value={customerName}
-              onChange={(event) => {
-                setCustomerName(event.target.value);
-                clearFieldError("customerName");
-              }}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
-            {fieldErrors.customerName ? (
-              <p id="customer-name-error" className="text-sm text-highlight-foreground">
-                {fieldErrors.customerName}
-              </p>
-            ) : null}
-          </label>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              aria-pressed={selectedStaffId === ""}
+              onClick={() => setSelectedStaffId("")}
+              className={`rounded-[1.25rem] border p-5 text-left transition ${
+                selectedStaffId === ""
+                  ? "border-accent bg-highlight-surface text-highlight-foreground"
+                  : "border-border bg-surface hover:border-accent"
+              }`}
+            >
+              <span className="block text-lg font-semibold">
+                {t(locale, "public.bookingForm.anyStaff")}
+              </span>
+              <span className="mt-2 block text-sm leading-6 opacity-80">
+                {t(locale, "public.bookingForm.anyStaffDescription")}
+              </span>
+            </button>
 
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "common.email")}
-            <input
-              required
-              type="email"
-              autoComplete="email"
-              aria-invalid={Boolean(fieldErrors.customerEmail)}
-              aria-describedby={fieldErrors.customerEmail ? "customer-email-error" : undefined}
-              value={customerEmail}
-              onChange={(event) => {
-                setCustomerEmail(event.target.value);
-                clearFieldError("customerEmail");
-              }}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
-            {fieldErrors.customerEmail ? (
-              <p id="customer-email-error" className="text-sm text-highlight-foreground">
-                {fieldErrors.customerEmail}
-              </p>
-            ) : null}
-          </label>
+            {staffMembers.map((staffMember) => {
+              const selected = selectedStaffId === staffMember.id;
 
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "common.phone")}
-            <input
-              required
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              aria-invalid={Boolean(fieldErrors.customerPhone)}
-              aria-describedby={fieldErrors.customerPhone ? "customer-phone-error" : "contact-information-help"}
-              value={customerPhone}
-              onChange={(event) => {
-                setCustomerPhone(event.target.value);
-                clearFieldError("customerPhone");
-              }}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
-            {fieldErrors.customerPhone ? (
-              <p id="customer-phone-error" className="text-sm text-highlight-foreground">
-                {fieldErrors.customerPhone}
-              </p>
-            ) : null}
-          </label>
+              return (
+                <button
+                  key={staffMember.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSelectedStaffId(staffMember.id)}
+                  className={`rounded-[1.25rem] border p-5 text-left transition ${
+                    selected
+                      ? "border-accent bg-highlight-surface text-highlight-foreground"
+                      : "border-border bg-surface hover:border-accent"
+                  }`}
+                >
+                  <span className="block text-lg font-semibold">{staffMember.name}</span>
+                  <span className="mt-2 block text-sm leading-6 opacity-80">
+                    {staffMember.title ?? t(locale, "public.bookingForm.availableProfessional")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-          <label className="grid gap-2 text-sm font-medium">
-            {t(locale, "common.notes")}
-            <input
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
-            />
-          </label>
-        </div>
+        <section aria-labelledby="time-heading" className="mt-8">
+          <div className="grid gap-5">
+            <label className="grid gap-2 text-sm font-medium">
+              <span className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+                {t(locale, "public.bookingForm.stepThree")}
+              </span>
+              <span id="time-heading" className="font-display text-4xl">
+                {t(locale, "public.bookingForm.timeStepTitle")}
+              </span>
+              <input
+                type="date"
+                min={format(new Date(), "yyyy-MM-dd")}
+                className="mt-3 rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+              />
+            </label>
+
+            <div aria-live="polite" className="min-h-9">
+              {isLoadingSlots ? (
+                <p className="rounded-2xl bg-surface px-4 py-3 text-sm text-muted">
+                  {t(locale, "public.bookingForm.searchingSlots")}
+                </p>
+              ) : null}
+              {availabilityError ? (
+                <div
+                  role="alert"
+                  className="flex flex-col gap-3 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p>{availabilityError}</p>
+                  <button
+                    type="button"
+                    onClick={retryAvailability}
+                    className="font-semibold underline underline-offset-4"
+                  >
+                    {t(locale, "public.bookingForm.retry")}
+                  </button>
+                </div>
+              ) : null}
+              {!availabilityError && !isLoadingSlots && slots.length === 0 ? (
+                <p className="rounded-2xl bg-surface px-4 py-3 text-sm text-muted">
+                  {t(locale, "public.bookingForm.noSlotsForSelection")}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {slots.map((slot) => (
+                <button
+                  key={slot.startAt}
+                  type="button"
+                  aria-pressed={selectedSlot === slot.startAt}
+                  onClick={() => setSelectedSlot(slot.startAt)}
+                  className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                    selectedSlot === slot.startAt
+                      ? "brand-accent-fill border-accent"
+                      : "border-border bg-surface hover:border-accent"
+                  }`}
+                >
+                  {formatSlotTime(slot.startAt, locale)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="contact-heading" className="mt-8">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
+              {t(locale, "public.bookingForm.stepFour")}
+            </p>
+            <h2 id="contact-heading" className="mt-2 font-display text-4xl">
+              {t(locale, "public.bookingForm.contactStepTitle")}
+            </h2>
+          </div>
+
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
+            <label className="grid gap-2 text-sm font-medium">
+              {t(locale, "public.bookingForm.fullName")}
+              <input
+                required
+                autoComplete="name"
+                aria-invalid={Boolean(fieldErrors.customerName)}
+                value={customerName}
+                onChange={(event) => {
+                  setCustomerName(event.target.value);
+                  clearFieldError("customerName");
+                }}
+                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+              />
+              {fieldErrors.customerName ? (
+                <p className="text-sm text-highlight-foreground">{fieldErrors.customerName}</p>
+              ) : null}
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium">
+              {t(locale, "common.email")}
+              <input
+                required
+                type="email"
+                autoComplete="email"
+                aria-invalid={Boolean(fieldErrors.customerEmail)}
+                value={customerEmail}
+                onChange={(event) => {
+                  setCustomerEmail(event.target.value);
+                  clearFieldError("customerEmail");
+                }}
+                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+              />
+              {fieldErrors.customerEmail ? (
+                <p className="text-sm text-highlight-foreground">{fieldErrors.customerEmail}</p>
+              ) : null}
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium">
+              {t(locale, "common.phone")}
+              <input
+                required
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                aria-invalid={Boolean(fieldErrors.customerPhone)}
+                value={customerPhone}
+                onChange={(event) => {
+                  setCustomerPhone(event.target.value);
+                  clearFieldError("customerPhone");
+                }}
+                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+              />
+              {fieldErrors.customerPhone ? (
+                <p className="text-sm text-highlight-foreground">{fieldErrors.customerPhone}</p>
+              ) : null}
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium">
+              {t(locale, "common.notes")}
+              <input
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                className="rounded-2xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-accent"
+              />
+            </label>
+          </div>
+        </section>
 
         {bookingError ? (
-          <p className="mt-6 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground">
+          <p
+            role="alert"
+            className="mt-6 rounded-2xl bg-highlight-surface px-4 py-3 text-sm text-highlight-foreground"
+          >
             {bookingError}
           </p>
         ) : null}
 
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="brand-accent-fill localized-action mt-8 rounded-full px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={confirmDisabled}
+          className="brand-accent-fill localized-action mt-8 rounded-full px-6 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting
             ? t(locale, "public.bookingForm.confirming")
@@ -741,55 +612,64 @@ export default function BookingForm({
       <aside
         data-locale-section=""
         data-locale-section-order="3"
-        className="rounded-[2rem] border border-border bg-surface/90 p-8"
+        className="rounded-[2rem] border border-border bg-surface/90 p-8 lg:sticky lg:top-6 lg:self-start"
       >
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
           {t(locale, "public.bookingForm.bookingSummary")}
         </p>
 
-        {selectedService ? (
-          <div className="mt-5 rounded-[1.5rem] bg-card p-6">
-            <h2 className="font-display text-3xl">{selectedService.name}</h2>
+        <div className="mt-5 rounded-[1.5rem] bg-card p-6">
+          <h2 className="font-display text-3xl">
+            {selectedService?.name ?? t(locale, "public.bookingForm.selectService")}
+          </h2>
+          {selectedService?.description ? (
             <p className="mt-3 text-sm leading-7 text-muted">{selectedService.description}</p>
-            <dl className="mt-5 grid gap-3 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">{t(locale, "common.timing")}</dt>
-                <dd>
-                  {formatServiceTiming(
-                    selectedService.durationMinutes,
-                    selectedService.bufferMinutes,
-                    locale,
-                  )}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">{t(locale, "common.price")}</dt>
-                <dd className="font-semibold">{formatMoney(selectedService.priceCents, locale)}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">{t(locale, "common.staff")}</dt>
-                <dd>{selectedStaff?.name ?? t(locale, "public.bookingForm.selectStaff")}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">{t(locale, "common.date")}</dt>
-                <dd>{selectedDate}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">{t(locale, "common.slot")}</dt>
-                <dd>
-                  {slots.find((slot) => slot.startAt === selectedSlot)?.label ??
-                    t(locale, "public.bookingForm.notSelected")}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        ) : null}
+          ) : null}
 
-        <div className="mt-5 rounded-[1.5rem] bg-card p-6 text-sm leading-7 text-muted">
-          <p>{t(locale, "public.bookingForm.mvpNote", { businessName: business.name })}</p>
-          <p className="mt-3">
-            {t(locale, "public.bookingForm.serverNote")}
-          </p>
+          <dl className="mt-5 grid gap-3 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-muted">{t(locale, "common.branch")}</dt>
+              <dd className="text-right font-medium">{business.name}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-muted">{t(locale, "common.professional")}</dt>
+              <dd className="text-right font-medium">
+                {selectedStaff?.name ??
+                  selectedSlotDetails?.staffMemberName ??
+                  t(locale, "public.bookingForm.anyStaff")}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-muted">{t(locale, "common.date")}</dt>
+              <dd className="text-right font-medium">{selectedDate}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-muted">{t(locale, "common.slot")}</dt>
+              <dd className="text-right font-medium">
+                {selectedSlotLabel ?? t(locale, "public.bookingForm.notSelected")}
+              </dd>
+            </div>
+            {selectedService ? (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">{t(locale, "common.timing")}</dt>
+                  <dd className="text-right font-medium">
+                    {formatServiceTiming(
+                      selectedService.durationMinutes,
+                      selectedService.bufferMinutes,
+                      locale,
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">{t(locale, "common.price")}</dt>
+                  <dd className="text-right font-semibold">
+                    {formatMoney(selectedService.priceCents, locale)}
+                  </dd>
+                </div>
+              </>
+            ) : null}
+          </dl>
         </div>
       </aside>
     </div>

@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# local agent/tool installs
+.agents/skills/impeccable/
+.claude/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

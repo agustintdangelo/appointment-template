@@ -9,7 +9,7 @@ import { ZodError } from "zod";
 import {
   createAppointmentManagementToken,
   createConfirmationCode,
-  getDailyAvailability,
+  getBookingAvailability,
 } from "@/lib/booking";
 import { normalizeContactEmail, normalizeContactText } from "@/lib/contact";
 import { prepareAppointmentConfirmation } from "@/lib/confirmation";
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const availability = await getDailyAvailability(
+    const availability = await getBookingAvailability(
       {
         businessId: business.id,
         serviceId: payload.serviceId,
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       data: {
         businessId: business.id,
         serviceId: payload.serviceId,
-        staffMemberId: payload.staffMemberId,
+        staffMemberId: matchingSlot.assignedStaffMemberId,
         customerId: authenticatedCustomer?.id ?? null,
         customerName: contactName,
         customerEmail: contactEmail,

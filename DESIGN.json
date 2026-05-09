@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-04-30T17:41:40Z",
+  "title": "Design System: Appointment Template",
+  "extensions": {
+    "colorMeta": {
+      "public-background": {
+        "role": "neutral",
+        "displayName": "Warm Lobby Background",
+        "canonical": "#f4ece3",
+        "tonalRamp": ["#fffdf8", "#fffaf4", "#f4ece3", "#ddcfbd", "#6d6256"]
+      },
+      "public-accent": {
+        "role": "primary",
+        "displayName": "Booked Teal",
+        "canonical": "#1b625a",
+        "tonalRamp": ["#eff8f6", "#b9d7d1", "#1b625a", "#124740"]
+      },
+      "public-highlight": {
+        "role": "secondary",
+        "displayName": "Soft Appointment Rose",
+        "canonical": "#f2c7bb",
+        "tonalRamp": ["#fffaf4", "#f2c7bb", "#221d18"]
+      },
+      "admin-background": {
+        "role": "neutral",
+        "displayName": "Quiet Admin Canvas",
+        "canonical": "#f5f4f1",
+        "tonalRamp": ["#ffffff", "#f8fafc", "#f5f4f1", "#d6dde5", "#64748b", "#1f2937"]
+      },
+      "admin-accent": {
+        "role": "primary",
+        "displayName": "Slate Operator",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#f8fafc", "#cbd5e1", "#64748b", "#1e293b", "#0f172a"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Public Display",
+        "purpose": "Public hero, service, confirmation, and preview headings only."
+      },
+      "headline": {
+        "displayName": "Admin Headline",
+        "purpose": "Admin page titles and major section headings."
+      },
+      "body": {
+        "displayName": "Operational Body",
+        "purpose": "Default readable text for booking forms, admin panels, descriptions, and metadata."
+      },
+      "label": {
+        "displayName": "Structured Label",
+        "purpose": "Eyebrows, filters, status labels, metadata, and compact control labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "admin-panel",
+        "value": "0 10px 28px -24px rgba(15, 23, 42, 0.22)",
+        "purpose": "Default admin panel and page intro depth."
+      },
+      {
+        "name": "admin-list",
+        "value": "0 10px 28px -24px rgba(15, 23, 42, 0.18)",
+        "purpose": "Lighter collection shell and card depth."
+      },
+      {
+        "name": "brand-panel",
+        "value": "0 30px 80px -50px color-mix(in srgb, var(--foreground) 38%, transparent)",
+        "purpose": "Public hero and primary booking panel depth."
+      },
+      {
+        "name": "brand-card",
+        "value": "0 24px 70px -55px color-mix(in srgb, var(--foreground) 36%, transparent)",
+        "purpose": "Public service card depth."
+      },
+      {
+        "name": "brand-accent",
+        "value": "0 20px 60px -45px color-mix(in srgb, var(--accent) 52%, transparent)",
+        "purpose": "Public accent-led card emphasis."
+      }
+    ],
+    "motion": [
+      {
+        "name": "admin-state-fast",
+        "value": "180ms ease",
+        "purpose": "Button, link, input, and color state transitions."
+      },
+      {
+        "name": "admin-feedback",
+        "value": "260ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Calm validation and save feedback reveal."
+      },
+      {
+        "name": "collection-enter",
+        "value": "240ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Card and list view transitions in admin collections."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ],
+    "rules": [
+      "Public customer-facing personalization starts in /admin/branding and flows through lib/branding.ts, CSS variables, and brand asset routes.",
+      "Admin pages stay neutral unless a task explicitly requests branded admin UI; /admin/branding is the controlled exception for public preview.",
+      "Public MVP, template, slice, and demo wording is intentional while the product is being evaluated as a reusable demo.",
+      "Booking forms should group choices into service/staff, date/slot, and customer details.",
+      "Booking forms should expose clear state: pressed selected slots, polite loading or empty-state announcements, alert semantics for errors, retry actions for availability failures, autocomplete on customer fields, and disabled confirmation until required fields plus a slot are complete.",
+      "Booking summaries should stay visible on larger screens when there is room.",
+      "Admin modals should trap focus, restore focus on close, keep Escape-close behavior, and preserve scroll lock while open.",
+      "Calendar item buttons should expose clear labels and pressed selected state.",
+      "Calendar day and week grids may scroll horizontally on narrow screens instead of compressing event columns below readable widths.",
+      "Admin navigation should expose the active section with aria-current and visible primary styling.",
+      "Admin collection controls should pair icons with visible text labels.",
+      "Destructive admin actions should require explicit acknowledgement and keep the destructive button disabled until acknowledgement is checked.",
+      "Use 1px borders and tonal layers before stronger shadows.",
+      "Respect reduced-motion preferences for admin transitions.",
+      "Do not rely on color alone for validation, status, or appointment state."
+    ]
+  },
+  "components": [
+    {
+      "name": "Public Primary Button",
+      "kind": "button",
+      "refersTo": "public-button-primary",
+      "description": "Primary booking action on public pages.",
+      "html": "<a class=\"brand-accent-fill rounded-full px-6 py-3 font-semibold transition\">Start booking</a>",
+      "css": ".brand-accent-fill { background-color: var(--accent); color: var(--accent-foreground) !important; } @media (hover: hover) { .brand-accent-fill:hover { background-color: var(--accent-strong); } }"
+    },
+    {
+      "name": "Admin Primary Button",
+      "kind": "button",
+      "refersTo": "admin-button-primary",
+      "description": "Primary admin save or create action.",
+      "html": "<button class=\"admin-button-primary\">Save changes</button>",
+      "css": ".admin-button-primary { min-height: 2.75rem; border-radius: 9999px; padding: 0.625rem 1.25rem; background: #0f172a; color: #f8fafc; font-size: 0.875rem; font-weight: 600; } .admin-button-primary:hover { background: #1e293b; }"
+    },
+    {
+      "name": "Admin Panel",
+      "kind": "card",
+      "refersTo": "admin-panel",
+      "description": "Standard admin shell for page intros, filter panels, editors, and previews.",
+      "html": "<section class=\"admin-panel p-6\"><h2 class=\"text-xl font-semibold text-slate-900\">Panel title</h2></section>",
+      "css": ".admin-panel { border: 1px solid #d6dde5; border-radius: 1rem; background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 28px -24px rgba(15, 23, 42, 0.22); }"
+    },
+    {
+      "name": "Admin Field",
+      "kind": "input",
+      "refersTo": "admin-input",
+      "description": "Default admin text, search, select, and textarea vocabulary.",
+      "html": "<input class=\"admin-input\" placeholder=\"Service name\" />",
+      "css": ".admin-input { min-height: 2.75rem; border: 1px solid #cbd5e1; border-radius: 0.875rem; background: #ffffff; color: #0f172a; padding: 0.75rem 1rem; transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease; } .admin-input:focus { border-color: #64748b; box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.18); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "admin-status-badge",
+      "description": "Compact appointment and collection state marker.",
+      "html": "<span class=\"admin-status-badge admin-status-badge-confirmed\">CONFIRMED</span>",
+      "css": ".admin-status-badge { display: inline-flex; align-items: center; justify-content: center; border-radius: 9999px; border: 1px solid #d8dee6; background: #f8fafc; padding: 0.25rem 0.75rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; color: #475569; } .admin-status-badge-confirmed { border-color: #cbd5e1; background: #0f172a; color: #f8fafc; }"
+    }
+  ]
+}

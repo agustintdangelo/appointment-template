@@ -977,3 +977,57 @@ Date/time: 2026-05-02 multi-tenant platform foundation
 ### Files/modules affected
 - `app/admin/settings/language-settings-form.tsx`
 - `docs/ITERATION_LOG.md`
+
+## 2026-05-09 - Rebased booking and admin UX hardening
+
+### What changed
+- kept the latest slug-scoped tenant routing and localization foundation from `main`
+- made `/[businessSlug]` render the booking flow as the customer homepage
+- changed `/[businessSlug]/book`, `/[businessSlug]/services`, `/book`, and `/services` into compatibility redirects to the booking homepage
+- removed separate Home and Services links from the public business header
+- restored the intended Sucursales-first, one-page public booking flow on the slug-scoped booking route
+- restored card-based service and professional selection in the public booking form
+- preserved the optional-staff booking behavior by resolving availability across active staff when no staff member is selected
+- kept appointment creation on the authenticated/guest customer path from `main`, including contact normalization, management-token hashing, and confirmation preparation
+- added assigned staff metadata to availability responses so any-staff slots can still show who will take the appointment
+- kept destructive-action acknowledgement checkboxes for services, staff, and blackout-date deletion
+- kept modal focus trapping, focus restoration, Escape close, scroll lock, labeled collection view controls, and responsive calendar grid improvements
+- ignored local Impeccable and Claude tooling directories instead of committing generated tool bundles
+
+### Files/modules affected
+- `.gitignore`
+- `app/(public)/[businessSlug]/page.tsx`
+- `app/(public)/[businessSlug]/book/page.tsx`
+- `app/(public)/[businessSlug]/services/page.tsx`
+- `app/(public)/[businessSlug]/layout.tsx`
+- `app/(public)/book/page.tsx`
+- `app/(public)/services/page.tsx`
+- `app/(public)/[businessSlug]/book/booking-form.tsx`
+- `app/api/availability/route.ts`
+- `app/api/appointments/route.ts`
+- `lib/booking.ts`
+- `lib/validation.ts`
+- `lib/i18n.ts`
+- `app/admin/calendar/calendar-manager.tsx`
+- `app/admin/components/create-entity-modal.tsx`
+- `app/admin/components/collection-view-mode-button.tsx`
+- `app/admin/services/services-manager.tsx`
+- `app/admin/staff/staff-manager.tsx`
+- `docs/PRODUCT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ADAPTATION_GUIDE.md`
+- `docs/ITERATION_LOG.md`
+
+### Schema / migration changes
+- none
+
+### Decisions made
+- kept current `main` as the source of truth for tenant routing, OAuth customer sessions, localization, and admin path scoping
+- treated the old public Home and Services pages as superseded by the booking-first customer surface
+- preserved product/design context files but kept generated agent tooling out of Git
+
+### Open issues / risks
+- browser smoke testing is still recommended for slug-scoped public booking with both any-staff and specific-staff selections
+
+### Next recommended step
+- smoke test `/[businessSlug]/book`, `/[businessSlug]/book?service=...`, and `/admin/[businessSlug]/calendar` on mobile and desktop widths

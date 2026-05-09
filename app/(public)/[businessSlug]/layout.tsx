@@ -146,18 +146,6 @@ export default async function PublicLayout({
                 href={buildPublicBusinessPath(businessSlug)}
                 className="min-w-[4.75rem] text-center transition hover:text-foreground"
               >
-                {t(locale, "common.home")}
-              </Link>
-              <Link
-                href={buildPublicBusinessPath(businessSlug, "/services")}
-                className="min-w-[4.75rem] text-center transition hover:text-foreground"
-              >
-                {t(locale, "common.services")}
-              </Link>
-              <Link
-                href={buildPublicBusinessPath(businessSlug, "/book")}
-                className="min-w-[4.75rem] text-center transition hover:text-foreground"
-              >
                 {t(locale, "common.book")}
               </Link>
               <Link

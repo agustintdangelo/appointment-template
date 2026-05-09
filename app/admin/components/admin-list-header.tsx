@@ -74,11 +74,13 @@ function HeaderSelect({
 
 function HeaderIconButton({
   label,
+  displayLabel,
   isActive = false,
   onClick,
   children,
 }: {
   label: string;
+  displayLabel: string;
   isActive?: boolean;
   onClick: () => void;
   children: ReactNode;
@@ -89,13 +91,14 @@ function HeaderIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-14 w-14 items-center justify-center rounded-[1rem] border transition ${
+      className={`flex h-14 min-w-32 items-center justify-center gap-2 rounded-[1rem] border px-4 text-sm font-semibold transition ${
         isActive
           ? "border-slate-400 bg-slate-100 text-slate-900"
           : "border-slate-300 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-900"
       }`}
     >
       {children}
+      <span>{displayLabel}</span>
     </button>
   );
 }
@@ -266,6 +269,13 @@ export default function AdminListHeader({
                         : sortValue === "name-asc"
                           ? t(locale, "admin.collection.sortDescending")
                           : t(locale, "admin.collection.resetSort")
+                    }
+                    displayLabel={
+                      sortValue === "default"
+                        ? "Sort"
+                        : sortValue === "name-asc"
+                          ? "A-Z"
+                          : "Z-A"
                     }
                     onClick={() => onSortChange(getNextSortValue(sortValue))}
                   >

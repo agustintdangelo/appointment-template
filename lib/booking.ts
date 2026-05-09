@@ -22,6 +22,26 @@ type AvailabilityInput = {
   date: string;
 };
 
+type BookingAvailabilityInput = {
+  businessId: string;
+  serviceId: string;
+  staffMemberId?: string;
+  date: string;
+};
+
+export type BookingAvailabilitySlot = AvailabilitySlot & {
+  assignedStaffMemberId: string;
+  staffMemberName: string;
+};
+
+type CreateBookingInput = BookingAvailabilityInput & {
+  slotStart: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  notes?: string;
+};
+
 function combineDateAndTime(date: Date, time: string) {
   const [hours, minutes] = time.split(":").map(Number);
   const next = new Date(date);
@@ -223,6 +243,144 @@ export async function getDailyAvailability(
     serviceDurationMinutes: service.durationMinutes,
     serviceBufferMinutes: service.bufferMinutes,
     slots,
+  };
+}
+
+export async function getBookingAvailability(
+  input: BookingAvailabilityInput,
+  localeInput: unknown = DEFAULT_LOCALE,
+) {
+  if (input.staffMemberId) {
+    const [availability, staffMember] = await Promise.all([
+      getDailyAvailability(
+        {
+          businessId: input.businessId,
+          serviceId: input.serviceId,
+          staffMemberId: input.staffMemberId,
+          date: input.date,
+        },
+        localeInput,
+      ),
+      prisma.staffMember.findFirst({
+        where: {
+          id: input.staffMemberId,
+          businessId: input.businessId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+    ]);
+
+    if (!staffMember) {
+      throw new Error("Staff member not found.");
+    }
+
+    return {
+      serviceDurationMinutes: availability.serviceDurationMinutes,
+      serviceBufferMinutes: availability.serviceBufferMinutes,
+      slots: availability.slots.map((slot) => ({
+        ...slot,
+        assignedStaffMemberId: staffMember.id,
+        staffMemberName: staffMember.name,
+      })),
+    };
+  }
+
+  const staffMembers = await prisma.staffMember.findMany({
+    where: {
+      businessId: input.businessId,
+      isActive: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (staffMembers.length === 0) {
+    return {
+      serviceDurationMinutes: 0,
+      serviceBufferMinutes: 0,
+      slots: [] as BookingAvailabilitySlot[],
+    };
+  }
+
+  const availabilityByStaff = await Promise.all(
+    staffMembers.map(async (staffMember) => ({
+      staffMember,
+      availability: await getDailyAvailability({
+        businessId: input.businessId,
+        serviceId: input.serviceId,
+        staffMemberId: staffMember.id,
+        date: input.date,
+      }, localeInput),
+    })),
+  );
+  const slotsByStart = new Map<string, BookingAvailabilitySlot>();
+
+  for (const { staffMember, availability } of availabilityByStaff) {
+    for (const slot of availability.slots) {
+      const slotKey = slot.startAt.toISOString();
+
+      if (!slotsByStart.has(slotKey)) {
+        slotsByStart.set(slotKey, {
+          ...slot,
+          assignedStaffMemberId: staffMember.id,
+          staffMemberName: staffMember.name,
+        });
+      }
+    }
+  }
+
+  const firstAvailability = availabilityByStaff[0]?.availability;
+
+  return {
+    serviceDurationMinutes: firstAvailability?.serviceDurationMinutes ?? 0,
+    serviceBufferMinutes: firstAvailability?.serviceBufferMinutes ?? 0,
+    slots: Array.from(slotsByStart.values()).sort(
+      (left, right) => left.startAt.getTime() - right.startAt.getTime(),
+    ),
+  };
+}
+
+export async function createBookingAppointment(input: CreateBookingInput) {
+  const availability = await getBookingAvailability(input);
+  const matchingSlot = availability.slots.find(
+    (slot) => slot.startAt.toISOString() === input.slotStart,
+  );
+
+  if (!matchingSlot) {
+    return {
+      status: "slot-unavailable" as const,
+    };
+  }
+
+  const appointment = await prisma.appointment.create({
+    data: {
+      businessId: input.businessId,
+      serviceId: input.serviceId,
+      staffMemberId: matchingSlot.assignedStaffMemberId,
+      customerName: input.customerName.trim(),
+      customerEmail: input.customerEmail.trim().toLowerCase(),
+      customerPhone: input.customerPhone?.trim() || null,
+      notes: input.notes?.trim() || null,
+      status: AppointmentStatus.CONFIRMED,
+      confirmationCode: createConfirmationCode(),
+      startAt: matchingSlot.startAt,
+      endAt: matchingSlot.endAt,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return {
+    status: "created" as const,
+    appointmentId: appointment.id,
   };
 }
 
