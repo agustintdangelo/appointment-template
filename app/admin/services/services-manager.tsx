@@ -90,7 +90,11 @@ function FormErrorText({ error }: { error?: string }) {
     return null;
   }
 
-  return <p className="text-sm text-rose-700">{error}</p>;
+  return (
+    <p className="text-sm text-rose-700" role="alert">
+      {error}
+    </p>
+  );
 }
 
 function EditIconButton({
@@ -189,6 +193,7 @@ function ServiceModalForm({
     deleteServiceAction,
     initialAdminEntityActionState,
   );
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const canDelete = !!service && (service._count?.appointments ?? 0) === 0;
 
   useEffect(() => {
@@ -206,7 +211,7 @@ function ServiceModalForm({
         <input type="hidden" name="locale" value={locale} />
 
         {saveState.status === "error" && saveState.message ? (
-          <div className="admin-error-banner">
+          <div className="admin-error-banner" role="alert">
             {saveState.message}
           </div>
         ) : null}
@@ -216,6 +221,7 @@ function ServiceModalForm({
           <input
             name="name"
             required
+            maxLength={120}
             autoFocus
             defaultValue={service?.name ?? ""}
             className="admin-input"
@@ -227,6 +233,7 @@ function ServiceModalForm({
           {t(locale, "admin.services.slug")}
           <input
             name="slug"
+            maxLength={120}
             defaultValue={service?.slug ?? ""}
             className="admin-input"
           />
@@ -238,6 +245,7 @@ function ServiceModalForm({
           <textarea
             name="description"
             rows={5}
+            maxLength={400}
             defaultValue={service?.description ?? ""}
             className="admin-textarea"
           />
@@ -336,16 +344,28 @@ function ServiceModalForm({
               </p>
             </div>
 
-            <form action={deleteAction}>
+            <form action={deleteAction} className="grid gap-3 sm:justify-items-end">
               <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="serviceId" defaultValue={service.id} />
               <input type="hidden" name="locale" value={locale} />
-              <DeleteServiceButton disabled={!canDelete} locale={locale} />
+              {canDelete ? (
+                <label className="flex max-w-xs items-start gap-3 text-sm leading-6 text-muted">
+                  <input
+                    required
+                    type="checkbox"
+                    checked={deleteAcknowledged}
+                    onChange={(event) => setDeleteAcknowledged(event.target.checked)}
+                    className="admin-checkbox mt-1"
+                  />
+                  {t(locale, "admin.services.deleteAcknowledgement")}
+                </label>
+              ) : null}
+              <DeleteServiceButton disabled={!canDelete || !deleteAcknowledged} locale={locale} />
             </form>
           </div>
 
           {deleteState.status === "error" && deleteState.message ? (
-            <p className="mt-3 text-sm text-rose-700">{deleteState.message}</p>
+            <p className="mt-3 text-sm text-rose-700" role="alert">{deleteState.message}</p>
           ) : null}
 
           {!canDelete ? (
@@ -406,8 +426,8 @@ function ServiceCard({
   return (
     <article className="admin-card p-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xl font-semibold text-slate-900">{service.name}</p>
+        <div className="min-w-0">
+          <p className="break-words text-xl font-semibold text-slate-900">{service.name}</p>
           <p className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-muted">
             {service.slug}
           </p>
@@ -489,9 +509,9 @@ function ServiceListRow({
 }) {
   return (
     <article className="flex flex-col gap-4 px-5 py-5 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5">
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-lg font-semibold text-slate-900">{service.name}</p>
+          <p className="break-words text-lg font-semibold text-slate-900">{service.name}</p>
           <span className="rounded-full border border-border bg-surface px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
             {service.isActive ? t(locale, "common.active") : t(locale, "common.inactive")}
           </span>

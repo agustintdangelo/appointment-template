@@ -191,6 +191,7 @@ function StaffModalForm({
     deleteStaffMemberAction,
     initialAdminEntityActionState,
   );
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const canDelete = !!staffMember && (staffMember._count?.appointments ?? 0) === 0;
 
   useEffect(() => {
@@ -308,11 +309,23 @@ function StaffModalForm({
               </p>
             </div>
 
-            <form action={deleteAction}>
+            <form action={deleteAction} className="grid gap-3 sm:justify-items-end">
               <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="staffMemberId" defaultValue={staffMember.id} />
               <input type="hidden" name="locale" value={locale} />
-              <DeleteStaffButton disabled={!canDelete} locale={locale} />
+              {canDelete ? (
+                <label className="flex max-w-xs items-start gap-3 text-sm leading-6 text-muted">
+                  <input
+                    required
+                    type="checkbox"
+                    checked={deleteAcknowledged}
+                    onChange={(event) => setDeleteAcknowledged(event.target.checked)}
+                    className="admin-checkbox mt-1"
+                  />
+                  {t(locale, "admin.staff.deleteAcknowledgement")}
+                </label>
+              ) : null}
+              <DeleteStaffButton disabled={!canDelete || !deleteAcknowledged} locale={locale} />
             </form>
           </div>
 

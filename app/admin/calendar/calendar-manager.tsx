@@ -447,6 +447,11 @@ function getWindowSummary(windows: WorkingWindow[], locale: AppLocale) {
     .join(", ");
 }
 
+function getCalendarItemLabel(item: CalendarItem) {
+  const kindLabel = item.kind === "appointment" ? "Appointment" : "Blackout date";
+  return `${kindLabel}: ${item.title}, ${item.subtitle}, ${format(item.startsAt, "MMM d, h:mm a")}`;
+}
+
 function getReferenceDateForDay(dayOfWeek: number) {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: CALENDAR_WEEK_STARTS_ON });
   return addDays(weekStart, dayOfWeek);
@@ -910,8 +915,9 @@ function CalendarToolbar({
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={viewMode === option.value}
                 onClick={() => onViewModeChange(option.value)}
-                className={`rounded-full px-3 py-2 text-sm font-semibold transition ${
+                className={`min-h-10 rounded-full px-3 py-2 text-sm font-semibold transition ${
                   viewMode === option.value
                     ? "bg-slate-900 text-white"
                     : "text-muted hover:text-slate-900"
@@ -1086,7 +1092,7 @@ function MonthView({
       data-locale-section-order="3"
       className="admin-list-shell rounded-[1.25rem]"
     >
-      <div className="grid grid-cols-7 border-b border-border bg-surface/80">
+      <div className="hidden grid-cols-7 border-b border-border bg-surface/80 md:grid">
         {dayNames.map((dayName) => (
           <div
             key={dayName}
@@ -1113,6 +1119,9 @@ function MonthView({
               } ${isSameMonth(day, focusDate) ? "bg-card" : "bg-surface/80"}`}
             >
               <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted md:hidden">
+                  {format(day, "EEE")}
+                </p>
                 <p
                   className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-sm font-semibold ${
                     isToday(day)
@@ -1134,6 +1143,8 @@ function MonthView({
                   <button
                     key={item.key}
                     type="button"
+                    aria-label={getCalendarItemLabel(item)}
+                    aria-pressed={selectedItemKey === item.key}
                     onClick={() => onSelectItem(item)}
                     className={`rounded-[1rem] border px-3 py-2 text-left transition ${
                       item.kind === "appointment"
@@ -1194,7 +1205,13 @@ function TimeGridView({
       data-locale-section-order="3"
       className="admin-list-shell rounded-[1.25rem]"
     >
-      <div className="w-full min-w-0">
+      <div className="w-full overflow-x-auto">
+        <div
+          className="min-w-full"
+          style={{
+            width: `max(100%, calc(4rem + ${days.length} * 12rem))`,
+          }}
+        >
         <div
           className="grid border-b border-border"
           style={{
@@ -1291,6 +1308,8 @@ function TimeGridView({
                     <button
                       key={item.key}
                       type="button"
+                      aria-label={getCalendarItemLabel(item)}
+                      aria-pressed={selectedItemKey === item.key}
                       onClick={() => onSelectItem(item)}
                       className={`absolute overflow-hidden rounded-[1rem] border px-2 py-2 text-left transition sm:px-3 ${
                         item.kind === "appointment"
@@ -1320,6 +1339,7 @@ function TimeGridView({
               </div>
             );
           })}
+        </div>
         </div>
       </div>
     </section>
@@ -1352,13 +1372,19 @@ function SaveBlackoutButton({
   );
 }
 
-function DeleteBlackoutButton({ locale }: { locale: AppLocale }) {
+function DeleteBlackoutButton({
+  disabled,
+  locale,
+}: {
+  disabled: boolean;
+  locale: AppLocale;
+}) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className="admin-button-secondary disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? t(locale, "common.deleting") : t(locale, "admin.calendar.deleteBlackout")}
@@ -1388,6 +1414,7 @@ function BlackoutModalForm({
     deleteBlackoutDateAction,
     initialAdminEntityActionState,
   );
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const isEditing = seed.mode === "edit";
 
   useEffect(() => {
@@ -1489,11 +1516,21 @@ function BlackoutModalForm({
               </p>
             </div>
 
-            <form action={deleteAction}>
+            <form action={deleteAction} className="grid gap-3 sm:justify-items-end">
               <input type="hidden" name="businessSlug" value={businessSlug} />
               <input type="hidden" name="blackoutDateId" defaultValue={seed.blackoutDateId ?? ""} />
               <input type="hidden" name="locale" value={locale} />
-              <DeleteBlackoutButton locale={locale} />
+              <label className="flex max-w-xs items-start gap-3 text-sm leading-6 text-muted">
+                <input
+                  required
+                  type="checkbox"
+                  checked={deleteAcknowledged}
+                  onChange={(event) => setDeleteAcknowledged(event.target.checked)}
+                  className="admin-checkbox mt-1"
+                />
+                {t(locale, "admin.calendar.deleteBlackoutAcknowledgement")}
+              </label>
+              <DeleteBlackoutButton disabled={!deleteAcknowledged} locale={locale} />
             </form>
           </div>
 

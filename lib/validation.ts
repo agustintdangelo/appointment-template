@@ -5,7 +5,7 @@ import { isValidGenericPhoneNumber } from "@/lib/contact";
 export const availabilityQuerySchema = z.object({
   businessSlug: z.string().trim().min(1),
   serviceId: z.string().min(1),
-  staffMemberId: z.string().min(1),
+  staffMemberId: z.string().trim().min(1).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
@@ -19,7 +19,7 @@ const contactPhoneSchema = z
 export const bookingSchema = z.object({
   businessSlug: z.string().trim().min(1),
   serviceId: z.string().min(1),
-  staffMemberId: z.string().min(1),
+  staffMemberId: z.string().trim().min(1).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slotStart: z.string().datetime({ offset: true }),
   customerName: z.string().trim().min(1).max(80),

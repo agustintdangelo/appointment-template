@@ -31,11 +31,10 @@ The first demo implementation represents a nail salon, but the architecture shou
 - seeded admin user record for future auth work
 
 ## Current implementation status
-- implemented: landing page
-- implemented: public services page
-- implemented: booking flow with staff selection
 - implemented: platform landing page at `/`
-- implemented: slug-scoped public routes at `/[businessSlug]`, `/[businessSlug]/services`, and `/[businessSlug]/book`
+- implemented: booking-first public homepage with optional staff preference
+- implemented: slug-scoped public booking homepage at `/[businessSlug]`
+- implemented: compatibility redirects from `/[businessSlug]/services`, `/[businessSlug]/book`, `/services`, and `/book` into the booking homepage
 - implemented: slug-scoped admin routes under `/admin/[businessSlug]`
 - implemented: legacy single-business redirects to the first seeded business when available
 - implemented: optional Google / Apple sign-in for public customer bookings
@@ -65,7 +64,8 @@ The first demo implementation represents a nail salon, but the architecture shou
 - a booking belongs to one service
 - a booking may belong to one staff member
 - availability is computed from schedules, blackout dates, and existing appointments
-- this first slice requires choosing a specific staff member before slot generation
+- customers can choose any staff or a specific staff preference before slot generation
+- any-staff bookings deterministically assign the first available staff member by staff ordering for the chosen slot
 - customers can book without signing in by providing full name, email, and phone
 - customers who sign in with Google or Apple still review and can edit contact details before confirming
 - authenticated bookings are linked to a customer identity derived from the server-side session
@@ -73,6 +73,7 @@ The first demo implementation represents a nail salon, but the architecture shou
 - bookings are confirmed immediately after creation in the current implementation
 - public and admin pages resolve the active business by `Business.slug`
 - legacy local-development URLs such as `/book`, `/services`, and `/admin/calendar` redirect to the first seeded business when one exists
+- the active customer surface is the booking homepage; separate public Home and Services pages are not part of the current product surface
 - Apple Sign-In should use one shared HTTPS platform callback, not a per-client callback URL
 
 ## Localization behavior

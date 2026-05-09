@@ -32,12 +32,12 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - path-based multi-tenant routing by `Business.slug`
 
 ## Current structure
-- `app/`
+  - `app/`
   - `/(public)` public route group
   - `/` platform landing page
-  - `/[businessSlug]` branded public business home
-  - `/[businessSlug]/services` public services catalog
-  - `/[businessSlug]/book` booking flow
+  - `/[businessSlug]` branded public booking homepage
+  - `/[businessSlug]/services` compatibility redirect to the booking homepage
+  - `/[businessSlug]/book` compatibility redirect to the booking homepage, preserving `?service=...`
   - `/[businessSlug]/book/confirmation/[appointmentId]` confirmation page
   - `/services`, `/book`, and legacy confirmation URLs redirect to the first seeded business when available
   - `/admin/[businessSlug]/calendar` unified scheduling workspace with calendar views, blackout management, and business-hours configuration
@@ -98,9 +98,11 @@ A slot is available only if:
 - path-based multi-tenant mode
   - public and admin pages resolve the business by `Business.slug`
   - root `/` is a neutral platform landing page
+  - the business public homepage is the booking flow; there is no separate public marketing home or services catalog in the active customer surface
   - legacy single-business URLs redirect to the first seeded business for local development continuity
-- staff selection is required during booking
-  - keeps schedule computation explicit for MVP
+- staff selection is optional during booking
+  - customers can keep any staff or choose a specific staff preference
+  - any-staff availability is computed across active staff and the server assigns the first matching staff member for the selected slot
 - business hours now support multiple Business periods per day
   - `BusinessHoursDay` stores the open/closed state for each weekday
   - `BusinessHours` stores one or more Business periods for the same weekday
@@ -108,6 +110,7 @@ A slot is available only if:
   - staff availability continues to support multiple rows per day
 - slot generation uses 15-minute increments
 - appointment creation rechecks availability on the server before insert
+- `/api/availability` and `/api/appointments` share the same optional-staff scheduling path so the public page and future assisted booking channels do not diverge
 - appointment creation and availability no longer trust a client-submitted `businessId`
   - the client sends the active business slug from the route
   - the server resolves that slug to a business id
@@ -127,6 +130,7 @@ A slot is available only if:
 - admin CRUD uses server actions and every mutation resolves/scopes the business from the submitted slug
 - services and staff members with linked appointments cannot be deleted
   - deactivation is the safe operational path
+  - destructive delete buttons stay disabled until the operator checks the acknowledgement box
 - Prisma 7 uses `prisma.config.ts` plus `@prisma/adapter-better-sqlite3`
 - branding is business-owned configuration
   - fonts and colors live on `Business`
@@ -144,10 +148,14 @@ A slot is available only if:
   - this keeps uploads in the same persistence layer as the rest of the app
 - services and staff admin collections now use client-side browsing state
   - search, status filter, sort, and card/list view all run against the already-fetched collection in the browser
+  - sort and view controls use visible labels alongside icons
   - create and edit happen in modals backed by server actions that return structured form state instead of redirecting
+  - shared admin modals trap focus, restore focus on close, support Escape close, and lock page scroll while open
   - the selected card/list view persists in `sessionStorage` per module
 - the admin calendar is now the primary scheduling surface
   - appointments and blackout dates are merged into one client-rendered calendar workspace
+  - calendar item buttons expose accessible labels and pressed selected state
+  - day and week grids scroll horizontally on narrow screens to preserve readable event columns
   - shared neutral admin shell classes keep Calendar, Staff, Appointments, Services, and Branding visually separate from public branding
   - day / week / month navigation runs in local UI state while data still comes from the existing Prisma models
   - blackout creation, editing, and deletion reuse the existing blackout schema and persistence model through modal server actions
@@ -224,8 +232,8 @@ A slot is available only if:
   - Google: `/api/auth/callback/google`
   - Apple: `/api/auth/callback/apple`
 - Apple requires external Apple Developer setup: Service ID, return URL, key/team configuration, and a signed client-secret JWT.
-- The public booking form stores in-progress selections and contact fields in slug-scoped `sessionStorage` before OAuth redirects, then restores them when the customer returns to `/[businessSlug]/book`.
-- Provider profile name/email are used only to prefill empty contact fields. The customer can still edit contact name, email, and phone before confirming.
+- The current booking homepage is guest-first and does not expose separate Google / Apple sign-in controls in the form UI.
+- If sign-in controls return later, provider profile name/email should only prefill empty contact fields. The customer must still be able to edit contact name, email, and phone before confirming.
 - Admin authentication remains separate. This slice does not add admin login or authorize admin routes.
 
 ## Appointment ownership and contact model

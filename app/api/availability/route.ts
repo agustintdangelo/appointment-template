@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { getDailyAvailability } from "@/lib/booking";
+import { getBookingAvailability } from "@/lib/booking";
 import { normalizeLocale, t } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessSlug } from "@/lib/tenant";
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const availability = await getDailyAvailability(
+    const availability = await getBookingAvailability(
       {
         businessId: business.id,
         serviceId: parsedQuery.serviceId,
@@ -54,6 +54,8 @@ export async function GET(request: Request) {
           startAt: slot.startAt.toISOString(),
           endAt: slot.endAt.toISOString(),
           label: slot.label,
+          assignedStaffMemberId: slot.assignedStaffMemberId,
+          staffMemberName: slot.staffMemberName,
         })),
       },
       {
