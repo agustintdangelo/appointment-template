@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { AppointmentStatus } from "@prisma/client";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -29,7 +31,7 @@ describe("createGuardedAppointment (KAN-12 double-booking guard)", () => {
           customerName,
           customerEmail: `${customerName}@example.com`,
           status: AppointmentStatus.CONFIRMED,
-          confirmationCode: `CODE-${customerName}`,
+          confirmationCode: randomUUID(),
           startAt,
           endAt,
         },
@@ -71,7 +73,7 @@ describe("createGuardedAppointment (KAN-12 double-booking guard)", () => {
         customerName: "first",
         customerEmail: "first@example.com",
         status: AppointmentStatus.CONFIRMED,
-        confirmationCode: "REBOOK-1",
+        confirmationCode: randomUUID(),
         startAt,
         endAt,
       },
@@ -97,7 +99,7 @@ describe("createGuardedAppointment (KAN-12 double-booking guard)", () => {
         customerName: "second",
         customerEmail: "second@example.com",
         status: AppointmentStatus.CONFIRMED,
-        confirmationCode: "REBOOK-2",
+        confirmationCode: randomUUID(),
         startAt,
         endAt,
       },
