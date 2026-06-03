@@ -1,6 +1,6 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { AppointmentStatus, Prisma } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
@@ -852,5 +852,54 @@ export async function updateDefaultLocaleAction(
     return buildEntityActionState("success", t(nextLocale, "actions.languageSaved"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.languageSaveError"));
+  }
+}
+
+const APPOINTMENT_STATUS_VALUES = Object.values(AppointmentStatus) as string[];
+
+export async function updateAppointmentStatusAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const business = await getAdminBusiness(formData, locale);
+    const appointmentId = getFormString(formData.get("appointmentId"));
+    const status = getFormString(formData.get("status"));
+
+    if (!appointmentId) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentIdMissing"));
+    }
+
+    if (!APPOINTMENT_STATUS_VALUES.includes(status)) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentStatusInvalid"));
+    }
+
+    // Scope by businessId so an admin can only mutate their own appointments.
+    const updated = await prisma.appointment.updateMany({
+      where: {
+        id: appointmentId,
+        businessId: business.id,
+      },
+      data: {
+        status: status as AppointmentStatus,
+      },
+    });
+
+    if (updated.count === 0) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentIdMissing"));
+    }
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      // Cancelling frees the slot, so refresh the public booking flow too.
+      publicPaths: ["/", "/book"],
+      adminPaths: ["/appointments", "/calendar"],
+    });
+
+    return buildEntityActionState("success", t(locale, "actions.appointmentStatusUpdated"));
+  } catch (error) {
+    return handleEntityMutationError(error, t(locale, "actions.appointmentStatusError"));
   }
 }

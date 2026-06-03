@@ -2,6 +2,7 @@ import {
   AdminEmptyState,
   AdminPageIntro,
 } from "@/app/admin/admin-ui";
+import AppointmentStatusControls from "@/app/admin/[businessSlug]/appointments/appointment-status-controls";
 import LocalizedSection from "@/app/components/localized-section";
 import { formatAppointmentDateTime } from "@/lib/format";
 import { formatAppointmentBookingType, formatAppointmentStatus, t } from "@/lib/i18n";
@@ -21,6 +22,14 @@ function getStatusClasses(status: string) {
 
   if (status === "COMPLETED") {
     return "admin-status-badge admin-status-badge-completed";
+  }
+
+  if (status === "CANCELLED") {
+    return "admin-status-badge admin-status-badge-cancelled";
+  }
+
+  if (status === "NO_SHOW") {
+    return "admin-status-badge admin-status-badge-no-show";
   }
 
   return "admin-status-badge";
@@ -114,6 +123,12 @@ export default async function AdminAppointmentsPage({
                   >
                     {formatAppointmentStatus(appointment.status, locale)}
                   </span>
+                  <AppointmentStatusControls
+                    appointmentId={appointment.id}
+                    currentStatus={appointment.status}
+                    businessSlug={businessSlug}
+                    locale={locale}
+                  />
                 </div>
               </article>
             ))}

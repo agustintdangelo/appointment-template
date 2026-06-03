@@ -515,6 +515,18 @@ html[data-locale-transition="entering"] [data-locale-section] {
   color: #334155;
 }
 
+.admin-status-badge-cancelled {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-status-badge-no-show {
+  border-color: #e5d4f2;
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
 .brand-panel-shadow {
   box-shadow: 0 30px 80px -50px color-mix(in srgb, var(--foreground) 38%, transparent);
 }
