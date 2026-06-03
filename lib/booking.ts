@@ -1,5 +1,6 @@
+import { TZDate } from "@date-fns/tz";
 import { AppointmentStatus } from "@prisma/client";
-import { addDays, addMinutes, format, getDay, parseISO, startOfDay } from "date-fns";
+import { addDays, addMinutes, format, getDay } from "date-fns";
 import { createHash, randomBytes } from "node:crypto";
 
 import { intersectDateWindows } from "@/lib/business-hours";
@@ -42,13 +43,23 @@ type CreateBookingInput = BookingAvailabilityInput & {
   notes?: string;
 };
 
-function combineDateAndTime(date: Date, time: string) {
+function parseDateParts(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+
+  return { year, month, day };
+}
+
+/**
+ * Build the UTC instant for a wall-clock time on a given calendar day, as it
+ * occurs in the business's timezone. Using TZDate means the offset (incl. DST)
+ * is resolved for that specific date, so slot math is correct regardless of the
+ * server/host timezone.
+ */
+function combineDateAndTime(date: string, time: string, timeZone: string) {
+  const { year, month, day } = parseDateParts(date);
   const [hours, minutes] = time.split(":").map(Number);
-  const next = new Date(date);
 
-  next.setHours(hours, minutes, 0, 0);
-
-  return next;
+  return new TZDate(year, month - 1, day, hours, minutes, 0, 0, timeZone);
 }
 
 function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
@@ -60,10 +71,29 @@ export async function getDailyAvailability(
   localeInput: unknown = DEFAULT_LOCALE,
 ) {
   const locale = normalizeLocale(localeInput);
-  const targetDay = parseISO(input.date);
-  const dayStart = startOfDay(targetDay);
-  const dayEnd = addDays(dayStart, 1);
-  const dayOfWeek = getDay(targetDay);
+
+  const business = await prisma.business.findUnique({
+    where: {
+      id: input.businessId,
+    },
+    select: {
+      timezone: true,
+    },
+  });
+
+  if (!business) {
+    throw new Error("BUSINESS_NOT_FOUND");
+  }
+
+  const timeZone = business.timezone;
+  // Day boundaries and weekday are resolved in the business timezone so that
+  // the queried window and slot generation match the business's local day,
+  // independent of the server/host timezone. Boundaries are passed to Prisma as
+  // plain UTC Dates.
+  const dayStartTz = combineDateAndTime(input.date, "00:00", timeZone);
+  const dayStart = new Date(dayStartTz.getTime());
+  const dayEnd = new Date(addDays(dayStartTz, 1).getTime());
+  const dayOfWeek = getDay(combineDateAndTime(input.date, "12:00", timeZone));
 
   const [service, staffMember, businessHoursDay, businessHours, blackoutDates, appointments] = await Promise.all([
     prisma.service.findFirst({
@@ -189,25 +219,36 @@ export async function getDailyAvailability(
 
   const serviceBlockMinutes = service.durationMinutes + service.bufferMinutes;
   const businessWindows = businessHours.map((window) => ({
-    startAt: combineDateAndTime(targetDay, window.openTime),
-    endAt: combineDateAndTime(targetDay, window.closeTime),
+    startAt: combineDateAndTime(input.date, window.openTime, timeZone),
+    endAt: combineDateAndTime(input.date, window.closeTime, timeZone),
   }));
   const staffWindows = staffMember.availabilities.map((availability) => ({
-    startAt: combineDateAndTime(targetDay, availability.startTime),
-    endAt: combineDateAndTime(targetDay, availability.endTime),
+    startAt: combineDateAndTime(input.date, availability.startTime, timeZone),
+    endAt: combineDateAndTime(input.date, availability.endTime, timeZone),
   }));
   const workWindows = intersectDateWindows(staffWindows, businessWindows);
+
+  // Exclude slots that start in the past (compared against the real "now"
+  // instant). Because every slot start is a real UTC instant, this works for
+  // same-day bookings regardless of timezone.
+  const nowMs = Date.now();
 
   const slots: AvailabilitySlot[] = [];
 
   for (const window of workWindows) {
     for (
-      let cursor = new Date(window.startAt);
+      // Keep the cursor as a TZDate clone so slot labels render in the
+      // business timezone, not the server's.
+      let cursor = addMinutes(window.startAt, 0);
       addMinutes(cursor, serviceBlockMinutes).getTime() <= window.endAt.getTime();
       cursor = addMinutes(cursor, SLOT_INTERVAL_MINUTES)
     ) {
       const serviceEnd = addMinutes(cursor, service.durationMinutes);
       const occupiedUntil = addMinutes(cursor, serviceBlockMinutes);
+
+      if (cursor.getTime() < nowMs) {
+        continue;
+      }
 
       const blockedByBlackout = blackoutDates.some((blackout) =>
         overlaps(cursor, occupiedUntil, blackout.startsAt, blackout.endsAt),
@@ -231,9 +272,11 @@ export async function getDailyAvailability(
       }
 
       slots.push({
-        startAt: new Date(cursor),
-        endAt: serviceEnd,
-        occupiedUntil,
+        // Persist/transport as plain UTC Dates so `toISOString()` is canonical;
+        // the label is rendered from the TZDate cursor in the business TZ.
+        startAt: new Date(cursor.getTime()),
+        endAt: new Date(serviceEnd.getTime()),
+        occupiedUntil: new Date(occupiedUntil.getTime()),
         label: format(cursor, "h:mm a", { locale: getDateFnsLocale(locale) }),
       });
     }
