@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 import {
   createAppointmentManagementToken,
   createConfirmationCode,
+  createGuardedAppointment,
   getBookingAvailability,
 } from "@/lib/booking";
 import { normalizeContactEmail, normalizeContactText } from "@/lib/contact";
@@ -132,7 +133,11 @@ export async function POST(request: Request) {
       : AppointmentBookingType.GUEST;
     const managementToken = createAppointmentManagementToken();
 
-    const appointment = await prisma.appointment.create({
+    const result = await createGuardedAppointment({
+      businessId: business.id,
+      staffMemberId: matchingSlot.assignedStaffMemberId,
+      startAt: matchingSlot.startAt,
+      endAt: matchingSlot.endAt,
       data: {
         businessId: business.id,
         serviceId: payload.serviceId,
@@ -184,6 +189,16 @@ export async function POST(request: Request) {
         },
       },
     });
+
+    // Lost the race against a concurrent booking for the same staff/slot.
+    if (result.status === "conflict") {
+      return NextResponse.json(
+        { error: t(locale, "validation.slotUnavailable") },
+        { status: 409 },
+      );
+    }
+
+    const appointment = result.appointment;
 
     prepareAppointmentConfirmation({
       appointment,
