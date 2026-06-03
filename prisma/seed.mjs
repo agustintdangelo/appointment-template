@@ -2,7 +2,12 @@ import "dotenv/config";
 
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { AppointmentStatus, PrismaClient } from "@prisma/client";
+import { hashSync } from "bcryptjs";
 import { createHash } from "node:crypto";
+
+// Default demo admin credentials. Override the password via SEED_ADMIN_PASSWORD.
+const SEED_ADMIN_EMAIL = "admin@studiohoursdemo.com";
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "admin1234";
 
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL,
@@ -239,10 +244,12 @@ async function main() {
     data: {
       businessId: business.id,
       name: "Studio Admin",
-      email: "admin@studiohoursdemo.com",
-      passwordHash: "placeholder-admin-password-hash",
+      email: SEED_ADMIN_EMAIL,
+      passwordHash: hashSync(SEED_ADMIN_PASSWORD, 10),
     },
   });
+
+  console.log(`Seeded admin login: ${SEED_ADMIN_EMAIL} / ${SEED_ADMIN_PASSWORD}`);
 
   await prisma.appointment.createMany({
     data: [
