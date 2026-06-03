@@ -30,6 +30,19 @@ Open `http://localhost:3000`.
 The root URL is now the platform landing page. The seeded demo business loads at
 `http://localhost:3000/studio-hours-demo`.
 
+## Admin access
+
+The admin area (`/admin`) is protected by email/password authentication and
+requires `NEXTAUTH_SECRET` to be set (validated at boot). Sign in at
+`/admin/login`. The seed creates a demo admin:
+
+- Email: `admin@studiohoursdemo.com`
+- Password: `admin1234` (override with `SEED_ADMIN_PASSWORD` when seeding)
+
+Generate a production secret with `openssl rand -base64 32` and set
+`NEXTAUTH_SECRET`. Unauthenticated requests to `/admin` are redirected to the
+login page; unauthenticated `/api/admin/*` calls return 401.
+
 ## Current MVP slice
 
 - Landing page

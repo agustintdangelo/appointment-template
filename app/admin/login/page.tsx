@@ -2,13 +2,13 @@
 
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 // Kept in sync with ADMIN_CREDENTIALS_PROVIDER_ID in lib/customer-auth.ts.
 // Hardcoded here so this client page doesn't import the server auth module.
 const ADMIN_CREDENTIALS_PROVIDER_ID = "admin-credentials";
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/admin";
@@ -91,5 +91,13 @@ export default function AdminLoginPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <AdminLoginForm />
+    </Suspense>
   );
 }
