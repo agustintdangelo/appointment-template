@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { AppointmentStatus } from "@prisma/client";
+import { AppointmentStatus, Prisma } from "@prisma/client";
 import { addDays, addMinutes, format, getDay } from "date-fns";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -390,6 +390,77 @@ export async function getBookingAvailability(
   };
 }
 
+/** Thrown inside the booking transaction when a conflicting appointment is found. */
+class SlotTakenError extends Error {
+  constructor() {
+    super("SLOT_TAKEN");
+    this.name = "SlotTakenError";
+  }
+}
+
+/**
+ * Insert an appointment while guarding against a concurrent double-booking.
+ *
+ * Availability is checked-then-inserted, so two concurrent requests for the same
+ * staff/slot could both pass the availability check before either committed. This
+ * runs the overlap re-check and the insert inside a single transaction: with the
+ * single-connection better-sqlite3 adapter the transactions are serialized, so the
+ * second request observes the first appointment and loses with a conflict.
+ *
+ * Returns `{ status: "conflict" }` for the loser; the caller maps that to a 409.
+ */
+export async function createGuardedAppointment<S extends Prisma.AppointmentSelect>(params: {
+  businessId: string;
+  staffMemberId: string;
+  startAt: Date;
+  endAt: Date;
+  data: Prisma.AppointmentUncheckedCreateInput;
+  select: S;
+}): Promise<
+  | { status: "created"; appointment: Prisma.AppointmentGetPayload<{ select: S }> }
+  | { status: "conflict" }
+> {
+  try {
+    const appointment = await prisma.$transaction(async (tx) => {
+      const conflict = await tx.appointment.findFirst({
+        where: {
+          businessId: params.businessId,
+          staffMemberId: params.staffMemberId,
+          status: {
+            not: AppointmentStatus.CANCELLED,
+          },
+          startAt: {
+            lt: params.endAt,
+          },
+          endAt: {
+            gt: params.startAt,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (conflict) {
+        throw new SlotTakenError();
+      }
+
+      return tx.appointment.create({
+        data: params.data,
+        select: params.select,
+      });
+    });
+
+    return { status: "created", appointment };
+  } catch (error) {
+    if (error instanceof SlotTakenError) {
+      return { status: "conflict" };
+    }
+
+    throw error;
+  }
+}
+
 export async function createBookingAppointment(input: CreateBookingInput) {
   const availability = await getBookingAvailability(input);
   const matchingSlot = availability.slots.find(
@@ -402,7 +473,11 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     };
   }
 
-  const appointment = await prisma.appointment.create({
+  const result = await createGuardedAppointment({
+    businessId: input.businessId,
+    staffMemberId: matchingSlot.assignedStaffMemberId,
+    startAt: matchingSlot.startAt,
+    endAt: matchingSlot.endAt,
     data: {
       businessId: input.businessId,
       serviceId: input.serviceId,
@@ -421,9 +496,15 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     },
   });
 
+  if (result.status === "conflict") {
+    return {
+      status: "slot-unavailable" as const,
+    };
+  }
+
   return {
     status: "created" as const,
-    appointmentId: appointment.id,
+    appointmentId: result.appointment.id,
   };
 }
 
