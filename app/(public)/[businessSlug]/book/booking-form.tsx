@@ -23,6 +23,7 @@ type ServiceOption = {
   durationMinutes: number;
   bufferMinutes: number;
   priceCents: number;
+  staffLinks?: Array<{ staffMemberId: string }>;
 };
 
 type StaffOption = {
@@ -99,7 +100,27 @@ export default function BookingForm({
   const [availabilityRefreshKey, setAvailabilityRefreshKey] = useState(0);
 
   const selectedService = services.find((service) => service.id === selectedServiceId);
-  const selectedStaff = staffMembers.find((staffMember) => staffMember.id === selectedStaffId);
+  const capableStaffIds = selectedService
+    ? new Set(selectedService.staffLinks?.map((link) => link.staffMemberId) ?? [])
+    : null;
+  const availableStaffMembers = capableStaffIds
+    ? staffMembers.filter((staffMember) => capableStaffIds.has(staffMember.id))
+    : staffMembers;
+  const selectedStaff = availableStaffMembers.find(
+    (staffMember) => staffMember.id === selectedStaffId,
+  );
+
+  useEffect(() => {
+    if (!selectedStaffId || !selectedService) {
+      return;
+    }
+    const capable = new Set(
+      selectedService.staffLinks?.map((link) => link.staffMemberId) ?? [],
+    );
+    if (!capable.has(selectedStaffId)) {
+      setSelectedStaffId("");
+    }
+  }, [selectedService, selectedStaffId]);
   const selectedSlotDetails = slots.find((slot) => slot.startAt === selectedSlot);
   const selectedSlotLabel = selectedSlotDetails
     ? formatSlotTime(selectedSlotDetails.startAt, locale)
@@ -419,7 +440,7 @@ export default function BookingForm({
               </span>
             </button>
 
-            {staffMembers.map((staffMember) => {
+            {availableStaffMembers.map((staffMember) => {
               const selected = selectedStaffId === staffMember.id;
 
               return (

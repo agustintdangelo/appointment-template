@@ -33,6 +33,11 @@ export async function getPrimaryBusiness() {
           durationMinutes: true,
           bufferMinutes: true,
           priceCents: true,
+          staffLinks: {
+            select: {
+              staffMemberId: true,
+            },
+          },
         },
       },
       staffMembers: {
@@ -80,6 +85,11 @@ export async function getBusinessBySlug(businessSlug: string) {
           durationMinutes: true,
           bufferMinutes: true,
           priceCents: true,
+          staffLinks: {
+            select: {
+              staffMemberId: true,
+            },
+          },
         },
       },
       staffMembers: {
@@ -403,32 +413,49 @@ export async function getAdminServices(businessSlug?: string) {
     return null;
   }
 
-  const services = await prisma.service.findMany({
-    where: {
-      businessId: business.id,
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      description: true,
-      durationMinutes: true,
-      bufferMinutes: true,
-      priceCents: true,
-      isActive: true,
-      sortOrder: true,
-      _count: {
-        select: {
-          appointments: true,
+  const [services, staffMembers] = await Promise.all([
+    prisma.service.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        durationMinutes: true,
+        bufferMinutes: true,
+        priceCents: true,
+        isActive: true,
+        sortOrder: true,
+        staffLinks: {
+          select: {
+            staffMemberId: true,
+          },
+        },
+        _count: {
+          select: {
+            appointments: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.staffMember.findMany({
+      where: { businessId: business.id },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      },
+    }),
+  ]);
 
   return {
     business,
     services,
+    staffMembers,
   };
 }
 
@@ -439,32 +466,59 @@ export async function getAdminStaffMembers(businessSlug?: string) {
     return null;
   }
 
-  const staffMembers = await prisma.staffMember.findMany({
-    where: {
-      businessId: business.id,
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      title: true,
-      bio: true,
-      isActive: true,
-      sortOrder: true,
-      _count: {
-        select: {
-          appointments: true,
-          availabilities: true,
-          blackoutDates: true,
+  const [staffMembers, services] = await Promise.all([
+    prisma.staffMember.findMany({
+      where: {
+        businessId: business.id,
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        title: true,
+        bio: true,
+        isActive: true,
+        sortOrder: true,
+        availabilities: {
+          orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+          select: {
+            id: true,
+            dayOfWeek: true,
+            startTime: true,
+            endTime: true,
+            isOff: true,
+          },
+        },
+        serviceLinks: {
+          select: {
+            serviceId: true,
+          },
+        },
+        _count: {
+          select: {
+            appointments: true,
+            availabilities: true,
+            blackoutDates: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.service.findMany({
+      where: { businessId: business.id },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      },
+    }),
+  ]);
 
   return {
     business,
     staffMembers,
+    services,
   };
 }
 

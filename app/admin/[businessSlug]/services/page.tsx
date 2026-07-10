@@ -47,6 +47,7 @@ export default async function TenantAdminServicesPage({
       <ServicesManager
         businessSlug={businessSlug}
         services={data.services}
+        staffMembers={data.staffMembers}
         locale={locale}
       />
     </>

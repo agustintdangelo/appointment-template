@@ -32,14 +32,24 @@ type ServiceRecord = {
   priceCents: number;
   isActive: boolean;
   sortOrder: number;
+  staffLinks?: Array<{
+    staffMemberId: string;
+  }>;
   _count?: {
     appointments: number;
   };
 };
 
+type StaffOption = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
 type ServicesManagerProps = {
   businessSlug: string;
   services: ServiceRecord[];
+  staffMembers: StaffOption[];
   locale: AppLocale;
 };
 
@@ -179,11 +189,13 @@ function DeleteServiceButton({
 function ServiceModalForm({
   service,
   businessSlug,
+  staffMembers,
   onClose,
   locale,
 }: {
   service: ServiceRecord | null;
   businessSlug: string;
+  staffMembers: StaffOption[];
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -195,6 +207,29 @@ function ServiceModalForm({
   );
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const canDelete = !!service && (service._count?.appointments ?? 0) === 0;
+  const linkedStaffIds = new Set(
+    service?.staffLinks?.map((link) => link.staffMemberId) ?? [],
+  );
+  // Match the "everyone can do it" default from staff creation: a brand-new
+  // service is capable of every current staff member unless the admin narrows
+  // it down.
+  const initialSelectedIds = new Set<string>(
+    service ? linkedStaffIds : staffMembers.map((staff) => staff.id),
+  );
+  const [selectedStaffIds, setSelectedStaffIds] =
+    useState<Set<string>>(initialSelectedIds);
+
+  function toggleStaff(staffId: string) {
+    setSelectedStaffIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(staffId)) {
+        next.delete(staffId);
+      } else {
+        next.add(staffId);
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (saveState.status === "success" || deleteState.status === "success") {
@@ -209,6 +244,14 @@ function ServiceModalForm({
         <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="serviceId" defaultValue={service?.id ?? ""} />
         <input type="hidden" name="locale" value={locale} />
+        {[...selectedStaffIds].map((staffId) => (
+          <input
+            key={staffId}
+            type="hidden"
+            name="staffMemberIds"
+            value={staffId}
+          />
+        ))}
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner" role="alert">
@@ -319,6 +362,59 @@ function ServiceModalForm({
           />
           {t(locale, "admin.services.activeBookable")}
         </label>
+
+        <fieldset className="grid gap-3">
+          <legend className="text-sm font-medium">
+            {t(locale, "admin.services.staffLabel")}
+          </legend>
+          <p className="text-sm text-muted">
+            {t(locale, "admin.services.staffDescription")}
+          </p>
+
+          {staffMembers.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-surface px-4 py-3 text-sm text-muted">
+              {t(locale, "admin.services.staffEmpty")}
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {staffMembers.map((staffMember) => {
+                const checked = selectedStaffIds.has(staffMember.id);
+                return (
+                  <label
+                    key={staffMember.id}
+                    className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
+                      checked
+                        ? "border-accent bg-highlight-surface text-highlight-foreground"
+                        : "border-border bg-surface hover:border-accent"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="admin-checkbox mt-1"
+                      checked={checked}
+                      onChange={() => toggleStaff(staffMember.id)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-semibold">{staffMember.name}</span>
+                      {!staffMember.isActive ? (
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted">
+                          {t(locale, "common.inactive")}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {staffMembers.length > 0 && selectedStaffIds.size === 0 ? (
+            <p className="text-sm text-rose-700">
+              {t(locale, "admin.services.staffNoneWarning")}
+            </p>
+          ) : null}
+          <FormErrorText error={saveState.fieldErrors.staffMemberIds} />
+        </fieldset>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <SaveServiceButton isEditing={!!service} locale={locale} />
@@ -571,6 +667,7 @@ function EmptyResults({
 export default function ServicesManager({
   businessSlug,
   services,
+  staffMembers,
   locale,
 }: ServicesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -708,6 +805,7 @@ export default function ServicesManager({
         <ServiceModalForm
           businessSlug={businessSlug}
           service={modalService}
+          staffMembers={staffMembers}
           onClose={closeModal}
           locale={locale}
         />

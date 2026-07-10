@@ -1,5 +1,43 @@
 # ITERATION LOG
 
+## Service-staff bookability mapping (KAN-16)
+Date/time: 2026-07-10
+
+### What changed
+- Added an explicit `ServiceStaff` join model so each staff member is bookable only for the services they are enabled to perform. Previously every staff was implicitly capable of every service, so "cualquier profesional" could assign someone incompatible.
+- Availability filtering (`lib/booking.ts`):
+  - `getDailyAvailability` now scopes the staff lookup to those linked to the requested service; a staff member without a `ServiceStaff` row for the service resolves to `STAFF_NOT_FOUND`.
+  - `getBookingAvailability` "any professional" mode iterates only capable staff instead of every active staff member for the business.
+- Admin edit (`app/admin/actions.ts > updateAppointmentAction`): rejects reassigning an appointment to a staff member who isn't linked to that service, with a translated `appointmentStaffCannotService` error.
+- Admin UX: `services` modal and `staff` modal each grow a capability multiselect. Server actions (`upsertServiceAction`, `upsertStaffMemberAction`) persist the picked ids via `syncServiceStaffLinks` / `syncStaffServiceLinks`. Newly created services/staff default to "linked to every existing counterpart" so brand-new records stay bookable without extra clicks — matching pre-KAN-16 behaviour.
+- Public booking form filters the staff choice list by the currently selected service and clears an incompatible pre-selection.
+- Seed and test helper create the join rows so seed data and existing Vitest suites keep producing slots.
+
+### Files/modules affected
+- `prisma/schema.prisma`, `prisma/migrations/20260710120000_service_staff_capability/migration.sql`
+- `prisma/seed.mjs`, `tests/helpers.ts`
+- `lib/booking.ts`, `lib/queries.ts`
+- `app/admin/actions.ts`
+- `app/admin/[businessSlug]/services/page.tsx`, `app/admin/[businessSlug]/staff/page.tsx`
+- `app/admin/services/services-manager.tsx`, `app/admin/staff/staff-manager.tsx`
+- `app/(public)/[businessSlug]/book/booking-form.tsx`
+- `lib/i18n.ts`
+
+### Schema / migration changes
+- New `ServiceStaff` table with `serviceId` + `staffMemberId` (both cascading), `@@unique([serviceId, staffMemberId])`, and an index on `staffMemberId`.
+- Migration backfills the cross-product of every existing service × staff pair per business so no live booking flow becomes unbookable when the filter turns on.
+
+### Decisions made
+- Explicit join model (with its own id/timestamps) instead of Prisma's implicit m2m, so the mapping is inspectable and the backfill migration is straightforward SQL.
+- On create, we default to "capable of everything" instead of "capable of nothing" to preserve current behaviour for teams that haven't started curating capability.
+- Admin appointment-edit UI still shows all staff; the server action enforces capability. This keeps the modal minimal and mirrors existing staff-eligibility errors.
+
+### Open issues / risks
+- Deactivating the last capable staff for a service silently makes it unbookable; the admin services modal already warns when zero staff are selected, but there is no cross-cutting alert if a service ends up unbookable via other paths (e.g. deleting a staff member's link).
+
+### Next recommended step
+- Surface an "unbookable service" indicator in the services list when a service ends up with zero capable staff, so admins can catch this before customers do.
+
 ## Ship-blockers: booking correctness & admin operability (KAN-23)
 Date/time: 2026-06-03
 

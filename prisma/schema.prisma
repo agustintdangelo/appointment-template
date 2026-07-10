@@ -84,20 +84,21 @@ model BusinessHoursDay {
 }
 
 model Service {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   businessId      String
   name            String
   slug            String
   description     String?
   durationMinutes Int
-  bufferMinutes   Int           @default(0)
+  bufferMinutes   Int            @default(0)
   priceCents      Int
-  isActive        Boolean       @default(true)
-  sortOrder       Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  isActive        Boolean        @default(true)
+  sortOrder       Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   appointments    Appointment[]
-  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  staffLinks      ServiceStaff[]
 
   @@unique([businessId, slug])
 }
@@ -117,8 +118,21 @@ model StaffMember {
   availabilities StaffAvailability[]
   blackoutDates  BlackoutDate[]
   business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  serviceLinks   ServiceStaff[]
 
   @@unique([businessId, slug])
+}
+
+model ServiceStaff {
+  id            String      @id @default(cuid())
+  serviceId     String
+  staffMemberId String
+  createdAt     DateTime    @default(now())
+  service       Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  staffMember   StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, staffMemberId])
+  @@index([staffMemberId])
 }
 
 model BusinessHours {

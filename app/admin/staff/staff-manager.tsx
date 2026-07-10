@@ -19,6 +19,7 @@ import {
 import CreateEntityModal from "@/app/admin/components/create-entity-modal";
 import ListView from "@/app/admin/components/list-view";
 import useSessionCollectionViewMode from "@/app/admin/components/use-session-collection-view";
+import StaffScheduleModal from "@/app/admin/staff/staff-schedule-modal";
 import { t, type AppLocale } from "@/lib/i18n";
 
 type StaffRecord = {
@@ -29,6 +30,16 @@ type StaffRecord = {
   bio: string | null;
   isActive: boolean;
   sortOrder: number;
+  availabilities?: Array<{
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isOff: boolean;
+  }>;
+  serviceLinks?: Array<{
+    serviceId: string;
+  }>;
   _count?: {
     appointments: number;
     availabilities: number;
@@ -36,9 +47,16 @@ type StaffRecord = {
   };
 };
 
+type ServiceOption = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
 type StaffManagerProps = {
   businessSlug: string;
   staffMembers: StaffRecord[];
+  services: ServiceOption[];
   locale: AppLocale;
 };
 
@@ -174,11 +192,13 @@ function DeleteStaffButton({
 function StaffModalForm({
   staffMember,
   businessSlug,
+  services,
   onClose,
   locale,
 }: {
   staffMember: StaffRecord | null;
   businessSlug: string;
+  services: ServiceOption[];
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -193,6 +213,29 @@ function StaffModalForm({
   );
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const canDelete = !!staffMember && (staffMember._count?.appointments ?? 0) === 0;
+  const linkedServiceIds = new Set(
+    staffMember?.serviceLinks?.map((link) => link.serviceId) ?? [],
+  );
+  // New staff default to being capable of every service, mirroring the seed
+  // behaviour: without this the create modal would appear pre-empty and any
+  // click "save" without touching services would produce an unbookable staffer.
+  const initialSelectedIds = new Set<string>(
+    staffMember ? linkedServiceIds : services.map((service) => service.id),
+  );
+  const [selectedServiceIds, setSelectedServiceIds] =
+    useState<Set<string>>(initialSelectedIds);
+
+  function toggleService(serviceId: string) {
+    setSelectedServiceIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (saveState.status === "success" || deleteState.status === "success") {
@@ -207,6 +250,14 @@ function StaffModalForm({
         <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="staffMemberId" defaultValue={staffMember?.id ?? ""} />
         <input type="hidden" name="locale" value={locale} />
+        {[...selectedServiceIds].map((serviceId) => (
+          <input
+            key={serviceId}
+            type="hidden"
+            name="serviceIds"
+            value={serviceId}
+          />
+        ))}
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner">
@@ -284,6 +335,59 @@ function StaffModalForm({
             {t(locale, "admin.staff.activeAssignable")}
           </label>
         </div>
+
+        <fieldset className="grid gap-3">
+          <legend className="text-sm font-medium">
+            {t(locale, "admin.staff.servicesLabel")}
+          </legend>
+          <p className="text-sm text-muted">
+            {t(locale, "admin.staff.servicesDescription")}
+          </p>
+
+          {services.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-surface px-4 py-3 text-sm text-muted">
+              {t(locale, "admin.staff.servicesEmpty")}
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {services.map((service) => {
+                const checked = selectedServiceIds.has(service.id);
+                return (
+                  <label
+                    key={service.id}
+                    className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
+                      checked
+                        ? "border-accent bg-highlight-surface text-highlight-foreground"
+                        : "border-border bg-surface hover:border-accent"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="admin-checkbox mt-1"
+                      checked={checked}
+                      onChange={() => toggleService(service.id)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-semibold">{service.name}</span>
+                      {!service.isActive ? (
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted">
+                          {t(locale, "common.inactive")}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {services.length > 0 && selectedServiceIds.size === 0 ? (
+            <p className="text-sm text-rose-700">
+              {t(locale, "admin.staff.servicesNoneWarning")}
+            </p>
+          ) : null}
+          <FormErrorText error={saveState.fieldErrors.serviceIds} />
+        </fieldset>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <SaveStaffButton isEditing={!!staffMember} locale={locale} />
@@ -382,10 +486,12 @@ function AddStaffCard({ onCreate, locale }: { onCreate: () => void; locale: AppL
 function StaffCard({
   staffMember,
   onEdit,
+  onEditSchedule,
   locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  onEditSchedule: (staffMember: StaffRecord) => void;
   locale: AppLocale;
 }) {
   return (
@@ -424,6 +530,17 @@ function StaffCard({
         <span className="rounded-full border border-border bg-surface px-3 py-2">
           {t(locale, "admin.staff.order", { order: staffMember.sortOrder })}
         </span>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={() => onEditSchedule(staffMember)}
+          className="admin-button-secondary"
+          aria-label={t(locale, "admin.staff.scheduleLabel", { name: staffMember.name })}
+        >
+          {t(locale, "admin.staff.schedule")}
+        </button>
       </div>
     </article>
   );
@@ -466,10 +583,12 @@ function AddStaffListRow({ onCreate, locale }: { onCreate: () => void; locale: A
 function StaffListRow({
   staffMember,
   onEdit,
+  onEditSchedule,
   locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  onEditSchedule: (staffMember: StaffRecord) => void;
   locale: AppLocale;
 }) {
   return (
@@ -495,7 +614,15 @@ function StaffListRow({
         </span>
       </div>
 
-      <div className="flex justify-start md:justify-end">
+      <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+        <button
+          type="button"
+          onClick={() => onEditSchedule(staffMember)}
+          className="admin-button-secondary"
+          aria-label={t(locale, "admin.staff.scheduleLabel", { name: staffMember.name })}
+        >
+          {t(locale, "admin.staff.schedule")}
+        </button>
         <EditIconButton
           label={t(locale, "admin.staff.editLabel", { name: staffMember.name })}
           onClick={() => onEdit(staffMember)}
@@ -538,6 +665,7 @@ function EmptyResults({
 export default function StaffManager({
   businessSlug,
   staffMembers,
+  services,
   locale,
 }: StaffManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -545,6 +673,7 @@ export default function StaffManager({
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
   const [viewMode, setViewMode] = useSessionCollectionViewMode(VIEW_MODE_STORAGE_KEY);
   const [editingStaffMember, setEditingStaffMember] = useState<StaffRecord | null>(null);
+  const [schedulingStaffMemberId, setSchedulingStaffMemberId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const visibleStaffMembers = sortStaffMembers(
@@ -629,6 +758,9 @@ export default function StaffManager({
                   key={staffMember.id}
                   staffMember={staffMember}
                   onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                  onEditSchedule={(selectedStaffMember) =>
+                    setSchedulingStaffMemberId(selectedStaffMember.id)
+                  }
                   locale={locale}
                 />
               ))}
@@ -646,6 +778,9 @@ export default function StaffManager({
                   <StaffListRow
                     staffMember={staffMember}
                     onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                    onEditSchedule={(selectedStaffMember) =>
+                      setSchedulingStaffMemberId(selectedStaffMember.id)
+                    }
                     locale={locale}
                   />
                 </div>
@@ -675,10 +810,29 @@ export default function StaffManager({
         <StaffModalForm
           businessSlug={businessSlug}
           staffMember={modalStaffMember}
+          services={services}
           onClose={closeModal}
           locale={locale}
         />
       </CreateEntityModal>
+
+      <StaffScheduleModal
+        businessSlug={businessSlug}
+        staffMember={(() => {
+          if (!schedulingStaffMemberId) return null;
+          const found = staffMembers.find(
+            (staffMember) => staffMember.id === schedulingStaffMemberId,
+          );
+          if (!found) return null;
+          return {
+            id: found.id,
+            name: found.name,
+            availabilities: found.availabilities ?? [],
+          };
+        })()}
+        onClose={() => setSchedulingStaffMemberId(null)}
+        locale={locale}
+      />
     </>
   );
 }
