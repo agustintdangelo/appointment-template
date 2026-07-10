@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useDeferredValue, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
@@ -28,6 +27,9 @@ import {
   upsertBlackoutDateAction,
   upsertBusinessHoursAction,
 } from "@/app/admin/actions";
+import AppointmentEditModal, {
+  type EditableAppointment,
+} from "@/app/admin/appointments/appointment-edit-modal";
 import CardGrid from "@/app/admin/components/card-grid";
 import CollectionViewModeButton from "@/app/admin/components/collection-view-mode-button";
 import CollectionViewTransition from "@/app/admin/components/collection-view-transition";
@@ -60,7 +62,6 @@ import {
   t,
   type AppLocale,
 } from "@/lib/i18n";
-import { buildAdminBusinessPath } from "@/lib/tenant";
 
 type BusinessPeriod = BusinessPeriodRecord;
 type BusinessHoursDay = BusinessHoursDayRecord<BusinessPeriod>;
@@ -958,22 +959,22 @@ function CalendarLegendCard({ locale }: { locale: AppLocale }) {
 }
 
 function PeriodSnapshotCard({
-  businessSlug,
   rangeLabel,
   selectedStaffMember,
   visibleAppointmentsCount,
   visibleBlackoutsCount,
   selectedItem,
   onEditBlackout,
+  onEditAppointment,
   locale,
 }: {
-  businessSlug: string;
   rangeLabel: string;
   selectedStaffMember: StaffRecord | null;
   visibleAppointmentsCount: number;
   visibleBlackoutsCount: number;
   selectedItem: CalendarItem | null;
   onEditBlackout: (blackout: BlackoutRecord) => void;
+  onEditAppointment: (appointment: AppointmentRecord) => void;
   locale: AppLocale;
 }) {
   return (
@@ -1044,12 +1045,13 @@ function PeriodSnapshotCard({
                   {formatAppointmentDateTime(selectedItem.appointment.startAt, locale)}
                 </p>
               </div>
-              <Link
-                href={buildAdminBusinessPath(businessSlug, "/appointments")}
+              <button
+                type="button"
+                onClick={() => onEditAppointment(selectedItem.appointment)}
                 className="admin-button-secondary w-fit"
               >
-                {t(locale, "admin.calendar.openAppointments")}
-              </Link>
+                {t(locale, "admin.calendar.editAppointment")}
+              </button>
             </div>
           )
         ) : (
@@ -2386,6 +2388,7 @@ export default function CalendarManager({
   );
   const [selectedStaffId, setSelectedStaffId] = useState("all");
   const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<EditableAppointment | null>(null);
   const [blackoutModalSeed, setBlackoutModalSeed] = useState<BlackoutModalSeed | null>(null);
   const [businessHoursModalSeed, setBusinessHoursModalSeed] =
     useState<BusinessHoursModalSeed | null>(null);
@@ -2512,13 +2515,13 @@ export default function CalendarManager({
         <div className="grid gap-4 md:grid-cols-[minmax(14rem,0.8fr)_minmax(0,1.2fr)]">
           <CalendarLegendCard locale={locale} />
           <PeriodSnapshotCard
-            businessSlug={businessSlug}
             rangeLabel={rangeLabel}
             selectedStaffMember={selectedStaffMember}
             visibleAppointmentsCount={visibleAppointmentsCount}
             visibleBlackoutsCount={visibleBlackoutsCount}
             selectedItem={selectedItem}
             onEditBlackout={openEditBlackoutModal}
+            onEditAppointment={(appointment) => setEditingAppointment(appointment)}
             locale={locale}
           />
         </div>
@@ -2697,6 +2700,14 @@ export default function CalendarManager({
           />
         ) : null}
       </CreateEntityModal>
+
+      <AppointmentEditModal
+        appointment={editingAppointment}
+        staffMembers={staffMembers}
+        businessSlug={businessSlug}
+        locale={locale}
+        onClose={() => setEditingAppointment(null)}
+      />
     </>
   );
 }

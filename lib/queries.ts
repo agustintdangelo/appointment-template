@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 
 import { normalizeBusinessHoursDays } from "@/lib/business-hours";
@@ -199,47 +200,139 @@ export async function getAppointmentConfirmation(
   });
 }
 
-export async function getAdminAppointments(businessSlug?: string) {
+export type AdminAppointmentStatusFilter =
+  | "ALL"
+  | "PENDING"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "COMPLETED";
+
+export type AdminAppointmentFilters = {
+  search?: string;
+  status?: AdminAppointmentStatusFilter;
+  staffId?: string;
+  from?: Date;
+  to?: Date;
+  page?: number;
+  pageSize?: number;
+};
+
+export const ADMIN_APPOINTMENTS_DEFAULT_PAGE_SIZE = 25;
+export const ADMIN_APPOINTMENTS_MAX_PAGE_SIZE = 100;
+
+const APPOINTMENT_STATUS_VALUES: ReadonlyArray<Exclude<AdminAppointmentStatusFilter, "ALL">> = [
+  "PENDING",
+  "CONFIRMED",
+  "CANCELLED",
+  "COMPLETED",
+];
+
+export function isAdminAppointmentStatus(
+  value: unknown,
+): value is Exclude<AdminAppointmentStatusFilter, "ALL"> {
+  return typeof value === "string" && (APPOINTMENT_STATUS_VALUES as readonly string[]).includes(value);
+}
+
+export async function getAdminAppointments(
+  businessSlug?: string,
+  filters: AdminAppointmentFilters = {},
+) {
   const business = await getAdminBusinessSummary(businessSlug);
 
   if (!business) {
     return null;
   }
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      businessId: business.id,
-    },
-    orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      confirmationCode: true,
-      customerName: true,
-      customerEmail: true,
-      customerPhone: true,
-      contactEmail: true,
-      contactPhone: true,
-      bookingType: true,
-      notes: true,
-      status: true,
-      startAt: true,
-      endAt: true,
-      service: {
-        select: {
-          name: true,
+  const pageSize = Math.min(
+    Math.max(1, Math.floor(filters.pageSize ?? ADMIN_APPOINTMENTS_DEFAULT_PAGE_SIZE)),
+    ADMIN_APPOINTMENTS_MAX_PAGE_SIZE,
+  );
+  const page = Math.max(1, Math.floor(filters.page ?? 1));
+
+  const search = filters.search?.trim() ?? "";
+  const startAtRange: Prisma.DateTimeFilter = {};
+  if (filters.from) {
+    startAtRange.gte = filters.from;
+  }
+  if (filters.to) {
+    startAtRange.lte = filters.to;
+  }
+
+  const where: Prisma.AppointmentWhereInput = {
+    businessId: business.id,
+    ...(filters.status && filters.status !== "ALL" ? { status: filters.status } : {}),
+    ...(filters.staffId ? { staffMemberId: filters.staffId } : {}),
+    ...(Object.keys(startAtRange).length > 0 ? { startAt: startAtRange } : {}),
+    ...(search.length > 0
+      ? {
+          OR: [
+            { customerName: { contains: search } },
+            { customerEmail: { contains: search } },
+            { customerPhone: { contains: search } },
+            { contactEmail: { contains: search } },
+            { contactPhone: { contains: search } },
+            { confirmationCode: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+
+  const [totalCount, staffMembers, appointments] = await Promise.all([
+    prisma.appointment.count({ where }),
+    prisma.staffMember.findMany({
+      where: { businessId: business.id },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      },
+    }),
+    prisma.appointment.findMany({
+      where,
+      orderBy: [{ startAt: "asc" }, { createdAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        confirmationCode: true,
+        customerName: true,
+        customerEmail: true,
+        customerPhone: true,
+        contactEmail: true,
+        contactPhone: true,
+        bookingType: true,
+        notes: true,
+        status: true,
+        startAt: true,
+        endAt: true,
+        service: {
+          select: {
+            name: true,
+          },
+        },
+        staffMember: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-      staffMember: {
-        select: {
-          name: true,
-        },
-      },
-    },
-  });
+    }),
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
 
   return {
     business,
     appointments,
+    staffMembers,
+    pagination: {
+      page: Math.min(page, pageCount),
+      pageSize,
+      pageCount,
+      totalCount,
+    },
   };
 }
 
