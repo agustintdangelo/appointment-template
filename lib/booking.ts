@@ -1,9 +1,10 @@
 import { TZDate } from "@date-fns/tz";
-import { AppointmentStatus, Prisma } from "@prisma/client";
+import { AppointmentBookingType, AppointmentStatus, Prisma } from "@prisma/client";
 import { addDays, addMinutes, format, getDay } from "date-fns";
 import { createHash, randomBytes } from "node:crypto";
 
 import { intersectDateWindows } from "@/lib/business-hours";
+import { normalizeContactEmail, normalizeContactText } from "@/lib/contact";
 import { DEFAULT_LOCALE, getDateFnsLocale, normalizeLocale } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +13,7 @@ const SLOT_INTERVAL_MINUTES = 15;
 export type AvailabilitySlot = {
   startAt: Date;
   endAt: Date;
+  occupiedFrom: Date;
   occupiedUntil: Date;
   label: string;
 };
@@ -35,13 +37,56 @@ export type BookingAvailabilitySlot = AvailabilitySlot & {
   staffMemberName: string;
 };
 
-type CreateBookingInput = BookingAvailabilityInput & {
+const APPOINTMENT_CONFIRMATION_SELECT = {
+  id: true,
+  confirmationCode: true,
+  startAt: true,
+  endAt: true,
+  customerName: true,
+  contactEmail: true,
+  contactPhone: true,
+  business: {
+    select: {
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
+  service: {
+    select: {
+      name: true,
+      durationMinutes: true,
+      bufferMinutes: true,
+    },
+  },
+  staffMember: {
+    select: {
+      name: true,
+      title: true,
+    },
+  },
+} satisfies Prisma.AppointmentSelect;
+
+export type AppointmentBookingSlotInput = BookingAvailabilityInput & {
   slotStart: string;
+  customerId?: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
   notes?: string;
+  bookingType: AppointmentBookingType;
+  guestFullName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
 };
+
+export type AppointmentBookingSlotResult =
+  | { status: "slot-unavailable" }
+  | {
+      status: "created";
+      appointment: Prisma.AppointmentGetPayload<{ select: typeof APPOINTMENT_CONFIRMATION_SELECT }>;
+      managementToken: string;
+    };
 
 function parseDateParts(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -105,6 +150,7 @@ export async function getDailyAvailability(
       select: {
         id: true,
         durationMinutes: true,
+        prepMinutes: true,
         bufferMinutes: true,
       },
     }),
@@ -197,6 +243,7 @@ export async function getDailyAvailability(
         endAt: true,
         service: {
           select: {
+            prepMinutes: true,
             bufferMinutes: true,
           },
         },
@@ -217,6 +264,7 @@ export async function getDailyAvailability(
   if (isBusinessClosed || businessHours.length === 0) {
     return {
       serviceDurationMinutes: service.durationMinutes,
+      servicePrepMinutes: service.prepMinutes,
       serviceBufferMinutes: service.bufferMinutes,
       slots: [] as AvailabilitySlot[],
     };
@@ -243,20 +291,22 @@ export async function getDailyAvailability(
   for (const window of workWindows) {
     for (
       // Keep the cursor as a TZDate clone so slot labels render in the
-      // business timezone, not the server's.
-      let cursor = addMinutes(window.startAt, 0);
+      // business timezone, not the server's. Prep time is reserved before the
+      // service start, so the first bookable start is offset from window open.
+      let cursor = addMinutes(window.startAt, service.prepMinutes);
       addMinutes(cursor, serviceBlockMinutes).getTime() <= window.endAt.getTime();
       cursor = addMinutes(cursor, SLOT_INTERVAL_MINUTES)
     ) {
       const serviceEnd = addMinutes(cursor, service.durationMinutes);
-      const occupiedUntil = addMinutes(cursor, serviceBlockMinutes);
+      const occupiedFrom = addMinutes(cursor, -service.prepMinutes);
+      const occupiedUntil = addMinutes(serviceEnd, service.bufferMinutes);
 
       if (cursor.getTime() < nowMs) {
         continue;
       }
 
       const blockedByBlackout = blackoutDates.some((blackout) =>
-        overlaps(cursor, occupiedUntil, blackout.startsAt, blackout.endsAt),
+        overlaps(occupiedFrom, occupiedUntil, blackout.startsAt, blackout.endsAt),
       );
 
       if (blockedByBlackout) {
@@ -264,12 +314,16 @@ export async function getDailyAvailability(
       }
 
       const blockedByAppointment = appointments.some((appointment) => {
+        const existingOccupiedFrom = addMinutes(
+          appointment.startAt,
+          -appointment.service.prepMinutes,
+        );
         const existingOccupiedUntil = addMinutes(
           appointment.endAt,
           appointment.service.bufferMinutes,
         );
 
-        return overlaps(cursor, occupiedUntil, appointment.startAt, existingOccupiedUntil);
+        return overlaps(occupiedFrom, occupiedUntil, existingOccupiedFrom, existingOccupiedUntil);
       });
 
       if (blockedByAppointment) {
@@ -281,6 +335,7 @@ export async function getDailyAvailability(
         // the label is rendered from the TZDate cursor in the business TZ.
         startAt: new Date(cursor.getTime()),
         endAt: new Date(serviceEnd.getTime()),
+        occupiedFrom: new Date(occupiedFrom.getTime()),
         occupiedUntil: new Date(occupiedUntil.getTime()),
         label: format(cursor, "h:mm a", { locale: getDateFnsLocale(locale) }),
       });
@@ -289,6 +344,7 @@ export async function getDailyAvailability(
 
   return {
     serviceDurationMinutes: service.durationMinutes,
+    servicePrepMinutes: service.prepMinutes,
     serviceBufferMinutes: service.bufferMinutes,
     slots,
   };
@@ -328,6 +384,7 @@ export async function getBookingAvailability(
 
     return {
       serviceDurationMinutes: availability.serviceDurationMinutes,
+      servicePrepMinutes: availability.servicePrepMinutes,
       serviceBufferMinutes: availability.serviceBufferMinutes,
       slots: availability.slots.map((slot) => ({
         ...slot,
@@ -359,6 +416,7 @@ export async function getBookingAvailability(
   if (staffMembers.length === 0) {
     return {
       serviceDurationMinutes: 0,
+      servicePrepMinutes: 0,
       serviceBufferMinutes: 0,
       slots: [] as BookingAvailabilitySlot[],
     };
@@ -395,6 +453,7 @@ export async function getBookingAvailability(
 
   return {
     serviceDurationMinutes: firstAvailability?.serviceDurationMinutes ?? 0,
+    servicePrepMinutes: firstAvailability?.servicePrepMinutes ?? 0,
     serviceBufferMinutes: firstAvailability?.serviceBufferMinutes ?? 0,
     slots: Array.from(slotsByStart.values()).sort(
       (left, right) => left.startAt.getTime() - right.startAt.getTime(),
@@ -473,50 +532,80 @@ export async function createGuardedAppointment<S extends Prisma.AppointmentSelec
   }
 }
 
-export async function createBookingAppointment(input: CreateBookingInput) {
-  const availability = await getBookingAvailability(input);
+/**
+ * Revalidate and book a slot, shared by the public booking route and the
+ * admin manual/walk-in booking action so both paths run through the same
+ * availability re-check and double-booking guard (`createGuardedAppointment`)
+ * and cannot drift apart.
+ */
+export async function bookAppointmentSlot(
+  input: AppointmentBookingSlotInput,
+  localeInput: unknown = DEFAULT_LOCALE,
+): Promise<AppointmentBookingSlotResult> {
+  const availability = await getBookingAvailability(
+    {
+      businessId: input.businessId,
+      serviceId: input.serviceId,
+      staffMemberId: input.staffMemberId,
+      date: input.date,
+    },
+    localeInput,
+  );
   const matchingSlot = availability.slots.find(
     (slot) => slot.startAt.toISOString() === input.slotStart,
   );
 
   if (!matchingSlot) {
     return {
-      status: "slot-unavailable" as const,
+      status: "slot-unavailable",
     };
   }
+
+  const contactName = normalizeContactText(input.customerName);
+  const contactEmail = normalizeContactEmail(input.customerEmail);
+  const contactPhone = input.customerPhone ? normalizeContactText(input.customerPhone) : null;
+  const managementToken = createAppointmentManagementToken();
 
   const result = await createGuardedAppointment({
     businessId: input.businessId,
     staffMemberId: matchingSlot.assignedStaffMemberId,
-    startAt: matchingSlot.startAt,
-    endAt: matchingSlot.endAt,
+    startAt: matchingSlot.occupiedFrom,
+    endAt: matchingSlot.occupiedUntil,
     data: {
       businessId: input.businessId,
       serviceId: input.serviceId,
       staffMemberId: matchingSlot.assignedStaffMemberId,
-      customerName: input.customerName.trim(),
-      customerEmail: input.customerEmail.trim().toLowerCase(),
-      customerPhone: input.customerPhone?.trim() || null,
+      customerId: input.customerId ?? null,
+      customerName: contactName,
+      customerEmail: contactEmail,
+      customerPhone: contactPhone,
+      guestFullName: input.guestFullName ?? null,
+      guestEmail: input.guestEmail ?? null,
+      guestPhone: input.guestPhone ?? null,
+      contactEmail,
+      contactPhone,
+      bookingType: input.bookingType,
+      managementTokenHash: managementToken.tokenHash,
       notes: input.notes?.trim() || null,
       status: AppointmentStatus.CONFIRMED,
       confirmationCode: createConfirmationCode(),
       startAt: matchingSlot.startAt,
       endAt: matchingSlot.endAt,
     },
-    select: {
-      id: true,
-    },
+    select: APPOINTMENT_CONFIRMATION_SELECT,
   });
 
+  // Lost the race against a concurrent booking for the same staff/slot.
   if (result.status === "conflict") {
     return {
-      status: "slot-unavailable" as const,
+      status: "slot-unavailable",
     };
   }
 
   return {
-    status: "created" as const,
-    appointmentId: result.appointment.id,
+    status: "created",
+    appointment: result.appointment,
+    managementToken: managementToken.token,
   };
 }
 

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import LocalizedSection from "@/app/components/localized-section";
+import { isAppointmentCancellableOnline } from "@/lib/appointments";
+
+import CancelAppointmentButton from "./cancel-appointment-button";
 import { formatAppointmentDateTime, formatMoney, formatServiceTiming } from "@/lib/format";
 import { formatAppointmentStatus, t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
@@ -22,6 +25,8 @@ export default async function BookingConfirmationPage({
   if (!appointment) {
     notFound();
   }
+
+  const isCancellable = isAppointmentCancellableOnline(appointment);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
@@ -100,6 +105,7 @@ export default async function BookingConfirmationPage({
                   appointment.service.durationMinutes,
                   appointment.service.bufferMinutes,
                   locale,
+                  appointment.service.prepMinutes,
                 )}
               </dd>
             </div>
@@ -119,7 +125,7 @@ export default async function BookingConfirmationPage({
         </article>
       </LocalizedSection>
 
-      <LocalizedSection as="div" order={3} className="flex flex-wrap gap-3">
+      <LocalizedSection as="div" order={3} className="flex flex-wrap items-start gap-3">
         <Link
           href={buildPublicBusinessPath(businessSlug, "/book")}
           className="brand-accent-fill localized-action rounded-full px-5 py-3 font-semibold transition"
@@ -132,6 +138,13 @@ export default async function BookingConfirmationPage({
         >
           {t(locale, "public.confirmation.openAdminList")}
         </Link>
+        {isCancellable ? (
+          <CancelAppointmentButton
+            appointmentId={appointment.id}
+            businessSlug={businessSlug}
+            locale={locale}
+          />
+        ) : null}
       </LocalizedSection>
     </div>
   );
