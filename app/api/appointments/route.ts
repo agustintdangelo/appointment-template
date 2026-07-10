@@ -1,18 +1,8 @@
-import {
-  AppointmentBookingType,
-  AppointmentStatus,
-  CustomerAuthProvider,
-} from "@prisma/client";
+import { AppointmentBookingType, CustomerAuthProvider } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import {
-  createAppointmentManagementToken,
-  createConfirmationCode,
-  createGuardedAppointment,
-  getBookingAvailability,
-} from "@/lib/booking";
-import { normalizeContactEmail, normalizeContactText } from "@/lib/contact";
+import { bookAppointmentSlot } from "@/lib/booking";
 import { prepareAppointmentConfirmation } from "@/lib/confirmation";
 import { getCustomerAuthSession } from "@/lib/customer-auth";
 import { normalizeLocale, t } from "@/lib/i18n";
@@ -102,96 +92,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const availability = await getBookingAvailability(
+    const authenticatedCustomer = await getAuthenticatedCustomer();
+    const bookingType = authenticatedCustomer
+      ? getBookingTypeFromCustomerProvider(authenticatedCustomer.authProvider)
+      : AppointmentBookingType.GUEST;
+
+    const result = await bookAppointmentSlot(
       {
         businessId: business.id,
         serviceId: payload.serviceId,
         staffMemberId: payload.staffMemberId,
         date: payload.date,
+        slotStart: payload.slotStart,
+        customerId: authenticatedCustomer?.id ?? null,
+        customerName: payload.customerName,
+        customerEmail: payload.customerEmail,
+        customerPhone: payload.customerPhone,
+        notes: payload.notes,
+        bookingType,
+        guestFullName: authenticatedCustomer ? null : payload.customerName,
+        guestEmail: authenticatedCustomer ? null : payload.customerEmail,
+        guestPhone: authenticatedCustomer ? null : payload.customerPhone,
       },
       locale,
     );
-    const matchingSlot = availability.slots.find(
-      (slot) => slot.startAt.toISOString() === payload.slotStart,
-    );
 
-    if (!matchingSlot) {
-      return NextResponse.json(
-        { error: t(locale, "validation.slotUnavailable") },
-        {
-          status: 409,
-        },
-      );
-    }
-
-    const authenticatedCustomer = await getAuthenticatedCustomer();
-    const contactName = normalizeContactText(payload.customerName);
-    const contactEmail = normalizeContactEmail(payload.customerEmail);
-    const contactPhone = normalizeContactText(payload.customerPhone);
-    const bookingType = authenticatedCustomer
-      ? getBookingTypeFromCustomerProvider(authenticatedCustomer.authProvider)
-      : AppointmentBookingType.GUEST;
-    const managementToken = createAppointmentManagementToken();
-
-    const result = await createGuardedAppointment({
-      businessId: business.id,
-      staffMemberId: matchingSlot.assignedStaffMemberId,
-      startAt: matchingSlot.startAt,
-      endAt: matchingSlot.endAt,
-      data: {
-        businessId: business.id,
-        serviceId: payload.serviceId,
-        staffMemberId: matchingSlot.assignedStaffMemberId,
-        customerId: authenticatedCustomer?.id ?? null,
-        customerName: contactName,
-        customerEmail: contactEmail,
-        customerPhone: contactPhone,
-        guestFullName: authenticatedCustomer ? null : contactName,
-        guestEmail: authenticatedCustomer ? null : contactEmail,
-        guestPhone: authenticatedCustomer ? null : contactPhone,
-        contactEmail,
-        contactPhone,
-        bookingType,
-        managementTokenHash: managementToken.tokenHash,
-        notes: payload.notes?.trim() || null,
-        status: AppointmentStatus.CONFIRMED,
-        confirmationCode: createConfirmationCode(),
-        startAt: matchingSlot.startAt,
-        endAt: matchingSlot.endAt,
-      },
-      select: {
-        id: true,
-        confirmationCode: true,
-        startAt: true,
-        endAt: true,
-        customerName: true,
-        contactEmail: true,
-        contactPhone: true,
-        business: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        service: {
-          select: {
-            name: true,
-            durationMinutes: true,
-            bufferMinutes: true,
-          },
-        },
-        staffMember: {
-          select: {
-            name: true,
-            title: true,
-          },
-        },
-      },
-    });
-
-    // Lost the race against a concurrent booking for the same staff/slot.
-    if (result.status === "conflict") {
+    if (result.status === "slot-unavailable") {
       return NextResponse.json(
         { error: t(locale, "validation.slotUnavailable") },
         { status: 409 },
@@ -202,7 +128,7 @@ export async function POST(request: Request) {
 
     prepareAppointmentConfirmation({
       appointment,
-      managementToken: managementToken.token,
+      managementToken: result.managementToken,
     });
 
     return NextResponse.json(

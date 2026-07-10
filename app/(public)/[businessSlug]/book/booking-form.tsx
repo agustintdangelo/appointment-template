@@ -21,6 +21,7 @@ type ServiceOption = {
   slug: string;
   description: string | null;
   durationMinutes: number;
+  prepMinutes: number;
   bufferMinutes: number;
   priceCents: number;
   staffLinks?: Array<{ staffMemberId: string }>;
@@ -398,6 +399,7 @@ export default function BookingForm({
                         service.durationMinutes,
                         service.bufferMinutes,
                         locale,
+                        service.prepMinutes,
                       )}
                     </span>
                     <span>{formatMoney(service.priceCents, locale)}</span>
@@ -679,6 +681,7 @@ export default function BookingForm({
                       selectedService.durationMinutes,
                       selectedService.bufferMinutes,
                       locale,
+                      selectedService.prepMinutes,
                     )}
                   </dd>
                 </div>

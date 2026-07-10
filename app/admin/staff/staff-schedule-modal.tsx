@@ -506,17 +506,17 @@ export default function StaffScheduleModal({
   locale,
 }: Props) {
   const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [lastStaffMemberId, setLastStaffMemberId] = useState(staffMember?.id ?? null);
 
   const schedule = useMemo(
     () => (staffMember ? normalizeAvailability(staffMember.availabilities) : []),
     [staffMember],
   );
 
-  useEffect(() => {
-    if (!staffMember) {
-      setEditingDay(null);
-    }
-  }, [staffMember]);
+  if ((staffMember?.id ?? null) !== lastStaffMemberId) {
+    setLastStaffMemberId(staffMember?.id ?? null);
+    setEditingDay(null);
+  }
 
   if (!staffMember) return null;
 

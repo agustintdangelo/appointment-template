@@ -31,6 +31,7 @@ export async function getPrimaryBusiness() {
           slug: true,
           description: true,
           durationMinutes: true,
+          prepMinutes: true,
           bufferMinutes: true,
           priceCents: true,
           staffLinks: {
@@ -83,6 +84,7 @@ export async function getBusinessBySlug(businessSlug: string) {
           slug: true,
           description: true,
           durationMinutes: true,
+          prepMinutes: true,
           bufferMinutes: true,
           priceCents: true,
           staffLinks: {
@@ -196,6 +198,7 @@ export async function getAppointmentConfirmation(
         select: {
           name: true,
           durationMinutes: true,
+          prepMinutes: true,
           bufferMinutes: true,
           priceCents: true,
         },
@@ -425,6 +428,7 @@ export async function getAdminServices(businessSlug?: string) {
         slug: true,
         description: true,
         durationMinutes: true,
+        prepMinutes: true,
         bufferMinutes: true,
         priceCents: true,
         isActive: true,
@@ -638,6 +642,7 @@ export async function getAdminCalendar(businessSlug?: string) {
           select: {
             name: true,
             durationMinutes: true,
+            prepMinutes: true,
             bufferMinutes: true,
           },
         },

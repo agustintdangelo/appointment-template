@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import AppointmentsFilters from "@/app/admin/appointments/appointments-filters";
+import NewAppointmentButton from "@/app/admin/[businessSlug]/appointments/new-appointment-button";
 import AppointmentsList from "@/app/admin/appointments/appointments-list";
 import {
   AdminEmptyState,
@@ -13,6 +14,7 @@ import { getBusinessLocale } from "@/lib/locale-server";
 import {
   ADMIN_APPOINTMENTS_DEFAULT_PAGE_SIZE,
   getAdminAppointments,
+  getAdminServices,
   isAdminAppointmentStatus,
   type AdminAppointmentStatusFilter,
 } from "@/lib/queries";
@@ -69,15 +71,18 @@ export default async function AdminAppointmentsPage({
   const toInput = readSearchParamValue(resolvedSearchParams.to) ?? "";
   const page = parsePage(readSearchParamValue(resolvedSearchParams.page));
 
-  const data = await getAdminAppointments(businessSlug, {
-    search: searchValue,
-    status,
-    staffId: staffId || undefined,
-    from: parseDateInput(fromInput, "start"),
-    to: parseDateInput(toInput, "end"),
-    page,
-    pageSize: ADMIN_APPOINTMENTS_DEFAULT_PAGE_SIZE,
-  });
+  const [data, servicesData] = await Promise.all([
+    getAdminAppointments(businessSlug, {
+      search: searchValue,
+      status,
+      staffId: staffId || undefined,
+      from: parseDateInput(fromInput, "start"),
+      to: parseDateInput(toInput, "end"),
+      page,
+      pageSize: ADMIN_APPOINTMENTS_DEFAULT_PAGE_SIZE,
+    }),
+    getAdminServices(businessSlug),
+  ]);
   const locale = getBusinessLocale(data?.business.defaultLocale);
 
   if (!data) {
@@ -88,6 +93,9 @@ export default async function AdminAppointmentsPage({
       />
     );
   }
+
+  const bookableServices = (servicesData?.services ?? []).filter((service) => service.isActive);
+  const bookableStaffMembers = data.staffMembers.filter((staffMember) => staffMember.isActive);
 
   const hasFilters =
     searchValue.length > 0 ||
@@ -119,6 +127,14 @@ export default async function AdminAppointmentsPage({
         eyebrow={t(locale, "admin.appointments.eyebrow")}
         title={t(locale, "admin.appointments.title", { businessName: data.business.name })}
         description={t(locale, "admin.appointments.description")}
+        actions={
+          <NewAppointmentButton
+            businessSlug={businessSlug}
+            services={bookableServices}
+            staffMembers={bookableStaffMembers}
+            locale={locale}
+          />
+        }
       />
 
       <AppointmentsFilters

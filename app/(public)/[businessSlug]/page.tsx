@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import LocalizedSection from "@/app/components/localized-section";
 import { t } from "@/lib/i18n";
 import { getPublicLocale } from "@/lib/locale-server";
 import { getBusinessBySlug } from "@/lib/queries";
+import { buildPublicBusinessPath } from "@/lib/tenant";
 
 import BookingForm from "./book/booking-form";
 import CustomerAuthProvider from "./book/customer-auth-provider";
@@ -53,6 +55,16 @@ export default async function HomePage({
           locale={locale}
         />
       </CustomerAuthProvider>
+
+      <LocalizedSection as="div" order={4} className="text-sm text-muted">
+        {t(locale, "public.book.manageBookingPrompt")}{" "}
+        <Link
+          href={buildPublicBusinessPath(business.slug, "/book/manage")}
+          className="localized-action font-semibold underline underline-offset-4"
+        >
+          {t(locale, "public.book.manageBookingLink")}
+        </Link>
+      </LocalizedSection>
     </div>
   );
 }

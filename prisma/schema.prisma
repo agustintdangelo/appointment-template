@@ -90,6 +90,7 @@ model Service {
   slug            String
   description     String?
   durationMinutes Int
+  prepMinutes     Int            @default(0)
   bufferMinutes   Int            @default(0)
   priceCents      Int
   isActive        Boolean        @default(true)

@@ -28,6 +28,7 @@ type ServiceRecord = {
   slug: string;
   description: string | null;
   durationMinutes: number;
+  prepMinutes: number;
   bufferMinutes: number;
   priceCents: number;
   isActive: boolean;
@@ -311,6 +312,20 @@ function ServiceModalForm({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
+            {t(locale, "admin.services.prep")}
+            <input
+              name="prepMinutes"
+              type="number"
+              min="0"
+              step="5"
+              required
+              defaultValue={service?.prepMinutes ?? 0}
+              className="admin-input"
+            />
+            <FormErrorText error={saveState.fieldErrors.prepMinutes} />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium">
             {t(locale, "admin.services.buffer")}
             <input
               name="bufferMinutes"
@@ -545,7 +560,7 @@ function ServiceCard({
 
       <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale)}
+          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale, service.prepMinutes)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
           {formatMoney(service.priceCents, locale)}
@@ -617,7 +632,7 @@ function ServiceListRow({
 
       <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
         <span className="rounded-full border border-border bg-surface px-3 py-2">
-          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale)}
+          {formatServiceTiming(service.durationMinutes, service.bufferMinutes, locale, service.prepMinutes)}
         </span>
         <span className="rounded-full border border-border bg-surface px-3 py-2">
           {formatMoney(service.priceCents, locale)}

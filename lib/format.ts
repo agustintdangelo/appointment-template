@@ -25,17 +25,31 @@ export function formatServiceTiming(
   durationMinutes: number,
   bufferMinutes: number,
   localeInput: unknown = DEFAULT_LOCALE,
+  prepMinutes = 0,
 ) {
-  if (bufferMinutes > 0) {
-    return t(localeInput, "format.serviceTimingWithBuffer", {
+  const parts = [
+    t(localeInput, "format.serviceTiming", {
       duration: durationMinutes,
-      buffer: bufferMinutes,
-    });
+    }),
+  ];
+
+  if (prepMinutes > 0) {
+    parts.push(
+      t(localeInput, "format.serviceTimingPrep", {
+        prep: prepMinutes,
+      }),
+    );
   }
 
-  return t(localeInput, "format.serviceTiming", {
-    duration: durationMinutes,
-  });
+  if (bufferMinutes > 0) {
+    parts.push(
+      t(localeInput, "format.serviceTimingBuffer", {
+        buffer: bufferMinutes,
+      }),
+    );
+  }
+
+  return parts.join(" + ");
 }
 
 export function formatAppointmentDateTime(

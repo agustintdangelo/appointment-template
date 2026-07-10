@@ -1,6 +1,6 @@
 "use server";
 
-import { AppointmentStatus, Prisma } from "@prisma/client";
+import { AppointmentBookingType, AppointmentStatus, Prisma } from "@prisma/client";
 import { addMinutes } from "date-fns";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
@@ -13,6 +13,8 @@ import {
   validateBusinessPeriods,
 } from "@/lib/business-hours";
 import { saveBrandingFromFormData } from "@/lib/branding-admin";
+import { bookAppointmentSlot } from "@/lib/booking";
+import { prepareAppointmentConfirmation } from "@/lib/confirmation";
 import {
   getFormCheckbox,
   getFormString,
@@ -31,6 +33,7 @@ import {
   buildPublicBusinessPath,
   normalizeBusinessSlug,
 } from "@/lib/tenant";
+import { adminBookingSchema } from "@/lib/validation";
 
 function getActionLocale(formData: FormData) {
   return normalizeLocale(getFormString(formData.get("locale")) || DEFAULT_LOCALE);
@@ -70,6 +73,28 @@ function buildFieldErrors(error: z.ZodError) {
 
     if (path && !fieldErrors[path]) {
       fieldErrors[path] = issue.message;
+    }
+  }
+
+  return fieldErrors;
+}
+
+function buildAppointmentFieldErrors(error: z.ZodError, locale: unknown) {
+  const fieldErrors: Record<string, string> = {};
+
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+
+    if (field === "customerName" && !fieldErrors.customerName) {
+      fieldErrors.customerName = t(locale, "validation.fullNameRequired");
+    }
+
+    if (field === "customerEmail" && !fieldErrors.customerEmail) {
+      fieldErrors.customerEmail = t(locale, "validation.emailInvalid");
+    }
+
+    if (field === "customerPhone" && !fieldErrors.customerPhone) {
+      fieldErrors.customerPhone = t(locale, "validation.phoneInvalid");
     }
   }
 
@@ -171,6 +196,10 @@ function buildServiceSchema(locale: unknown) {
       .number()
       .int(t(locale, "actions.durationWhole"))
       .min(5, t(locale, "actions.durationMin")),
+    prepMinutes: z.coerce
+      .number()
+      .int(t(locale, "actions.prepWhole"))
+      .min(0, t(locale, "actions.prepNegative")),
     bufferMinutes: z.coerce
       .number()
       .int(t(locale, "actions.bufferWhole"))
@@ -300,6 +329,7 @@ export async function upsertServiceAction(
       slug: getOptionalFormString(formData.get("slug")),
       description: getOptionalFormString(formData.get("description")),
       durationMinutes: getFormString(formData.get("durationMinutes")),
+      prepMinutes: getFormString(formData.get("prepMinutes")),
       bufferMinutes: getFormString(formData.get("bufferMinutes")),
       price: getFormString(formData.get("price")),
       sortOrder: getFormString(formData.get("sortOrder")),
@@ -355,6 +385,7 @@ export async function upsertServiceAction(
       slug,
       description: parsedInput.description ?? null,
       durationMinutes: parsedInput.durationMinutes,
+      prepMinutes: parsedInput.prepMinutes,
       bufferMinutes: parsedInput.bufferMinutes,
       priceCents: Math.round(parsedInput.price * 100),
       sortOrder: parsedInput.sortOrder,
@@ -1123,6 +1154,8 @@ export async function upsertBrandingAction(
   return saveBrandingFromFormData(formData);
 }
 
+const CONFLICT_SCAN_SLACK_MINUTES = 24 * 60;
+
 function buildAppointmentUpdateSchema(locale: unknown) {
   return z
     .object({
@@ -1172,6 +1205,7 @@ export async function updateAppointmentAction(
         service: {
           select: {
             durationMinutes: true,
+            prepMinutes: true,
             bufferMinutes: true,
           },
         },
@@ -1222,9 +1256,13 @@ export async function updateAppointmentAction(
 
     const nextStartAt = parsedInput.startAtDate;
     const nextEndAt = addMinutes(nextStartAt, appointment.service.durationMinutes);
+    const nextOccupiedFrom = addMinutes(nextStartAt, -appointment.service.prepMinutes);
     const nextOccupiedUntil = addMinutes(nextEndAt, appointment.service.bufferMinutes);
 
     if (nextStaffMemberId) {
+      // Neighbours' occupied windows extend beyond their stored startAt/endAt by
+      // their own prep/buffer, so the coarse SQL range gets a day of slack and
+      // the exact prep/buffer-aware overlap check happens below.
       const conflictingAppointments = await prisma.appointment.findMany({
         where: {
           businessId: business.id,
@@ -1236,10 +1274,10 @@ export async function updateAppointmentAction(
             not: appointment.id,
           },
           startAt: {
-            lt: nextOccupiedUntil,
+            lt: addMinutes(nextOccupiedUntil, CONFLICT_SCAN_SLACK_MINUTES),
           },
           endAt: {
-            gt: nextStartAt,
+            gt: addMinutes(nextOccupiedFrom, -CONFLICT_SCAN_SLACK_MINUTES),
           },
         },
         select: {
@@ -1247,6 +1285,7 @@ export async function updateAppointmentAction(
           endAt: true,
           service: {
             select: {
+              prepMinutes: true,
               bufferMinutes: true,
             },
           },
@@ -1254,14 +1293,18 @@ export async function updateAppointmentAction(
       });
 
       const hasConflict = conflictingAppointments.some((existing) => {
+        const existingOccupiedFrom = addMinutes(
+          existing.startAt,
+          -existing.service.prepMinutes,
+        );
         const existingOccupiedUntil = addMinutes(
           existing.endAt,
           existing.service.bufferMinutes,
         );
 
         return (
-          nextStartAt.getTime() < existingOccupiedUntil.getTime() &&
-          nextOccupiedUntil.getTime() > existing.startAt.getTime()
+          nextOccupiedFrom.getTime() < existingOccupiedUntil.getTime() &&
+          nextOccupiedUntil.getTime() > existingOccupiedFrom.getTime()
         );
       });
 
@@ -1378,5 +1421,82 @@ export async function updateAppointmentStatusAction(
     return buildEntityActionState("success", t(locale, "actions.appointmentStatusUpdated"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.appointmentStatusError"));
+  }
+}
+
+export async function createManualAppointmentAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const business = await getAdminBusiness(formData, locale);
+    const customerPhone = getOptionalFormString(formData.get("customerPhone"));
+    const parsedInput = adminBookingSchema.parse({
+      serviceId: getFormString(formData.get("serviceId")),
+      staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
+      date: getFormString(formData.get("date")),
+      slotStart: getFormString(formData.get("slotStart")),
+      customerName: getFormString(formData.get("customerName")),
+      customerEmail: getFormString(formData.get("customerEmail")),
+      customerPhone,
+      notes: getOptionalFormString(formData.get("notes")),
+    });
+
+    const result = await bookAppointmentSlot(
+      {
+        businessId: business.id,
+        serviceId: parsedInput.serviceId,
+        staffMemberId: parsedInput.staffMemberId,
+        date: parsedInput.date,
+        slotStart: parsedInput.slotStart,
+        customerId: null,
+        customerName: parsedInput.customerName,
+        customerEmail: parsedInput.customerEmail,
+        customerPhone: parsedInput.customerPhone,
+        notes: parsedInput.notes,
+        bookingType: AppointmentBookingType.GUEST,
+        guestFullName: parsedInput.customerName,
+        guestEmail: parsedInput.customerEmail,
+        guestPhone: parsedInput.customerPhone ?? null,
+      },
+      locale,
+    );
+
+    if (result.status === "slot-unavailable") {
+      return buildEntityActionState("error", t(locale, "validation.slotUnavailable"));
+    }
+
+    prepareAppointmentConfirmation({
+      appointment: result.appointment,
+      managementToken: result.managementToken,
+    });
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/", "/book"],
+      adminPaths: ["/appointments", "/calendar"],
+    });
+
+    return buildEntityActionState("success", t(locale, "actions.appointmentCreated"));
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return buildEntityActionState(
+        "error",
+        t(locale, "actions.appointmentCreateError"),
+        buildAppointmentFieldErrors(error, locale),
+      );
+    }
+
+    if (error instanceof Error && error.message === "SERVICE_NOT_FOUND") {
+      return buildEntityActionState("error", t(locale, "validation.serviceNotFound"));
+    }
+
+    if (error instanceof Error && error.message === "STAFF_NOT_FOUND") {
+      return buildEntityActionState("error", t(locale, "validation.staffNotFound"));
+    }
+
+    return handleEntityMutationError(error, t(locale, "actions.appointmentCreateError"));
   }
 }

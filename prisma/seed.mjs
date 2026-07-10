@@ -97,6 +97,7 @@ async function main() {
         description:
           "A durable color refresh for guests who want extra wear without extra complexity.",
         durationMinutes: 60,
+        prepMinutes: 15,
         bufferMinutes: 10,
         priceCents: 5500,
         sortOrder: 2,
@@ -219,15 +220,16 @@ async function main() {
     });
   }
 
-  // Demo default: every staff member can perform every service. Admins can
-  // narrow this down per staff/service through the admin workspace.
+  // Demo capability mapping stays intentionally uneven so the service-staff
+  // filter is visible in the demo. Admins manage it through the admin workspace.
   await prisma.serviceStaff.createMany({
-    data: services.flatMap((service) =>
-      staffMembers.map((staffMember) => ({
-        serviceId: service.id,
-        staffMemberId: staffMember.id,
-      })),
-    ),
+    data: [
+      { serviceId: services[0].id, staffMemberId: staffMembers[0].id },
+      { serviceId: services[1].id, staffMemberId: staffMembers[0].id },
+      { serviceId: services[1].id, staffMemberId: staffMembers[1].id },
+      { serviceId: services[0].id, staffMemberId: staffMembers[2].id },
+      { serviceId: services[2].id, staffMemberId: staffMembers[2].id },
+    ],
   });
 
   const firstOpenDate = nextOpenDate(1);
