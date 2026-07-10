@@ -2,11 +2,19 @@
 
 import { useState } from "react";
 
+import AppointmentStatusControls from "@/app/admin/[businessSlug]/appointments/appointment-status-controls";
 import AppointmentEditModal, {
   type AppointmentEditStaffOption,
 } from "@/app/admin/appointments/appointment-edit-modal";
 import { formatAppointmentDateTime } from "@/lib/format";
 import { formatAppointmentBookingType, formatAppointmentStatus, t, type AppLocale } from "@/lib/i18n";
+
+type AppointmentStatusValue =
+  | "PENDING"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "COMPLETED"
+  | "NO_SHOW";
 
 type AppointmentRecord = {
   id: string;
@@ -18,7 +26,7 @@ type AppointmentRecord = {
   contactPhone: string | null;
   bookingType: string;
   notes: string | null;
-  status: string;
+  status: AppointmentStatusValue;
   startAt: Date;
   endAt: Date;
   service: {
@@ -41,6 +49,8 @@ function getStatusClasses(status: string) {
   if (status === "CONFIRMED") return "admin-status-badge admin-status-badge-confirmed";
   if (status === "PENDING") return "admin-status-badge admin-status-badge-pending";
   if (status === "COMPLETED") return "admin-status-badge admin-status-badge-completed";
+  if (status === "CANCELLED") return "admin-status-badge admin-status-badge-cancelled";
+  if (status === "NO_SHOW") return "admin-status-badge admin-status-badge-no-show";
   return "admin-status-badge";
 }
 
@@ -128,15 +138,23 @@ export default function AppointmentsList({
               </p>
             </div>
 
-            <div className="flex items-start justify-between gap-3">
-              <span className={getStatusClasses(appointment.status)}>
-                {formatAppointmentStatus(appointment.status, locale)}
-              </span>
-              <EditIconButton
-                label={t(locale, "admin.appointments.editLabel", {
-                  customerName: appointment.customerName,
-                })}
-                onClick={() => setEditingAppointment(appointment)}
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <span className={getStatusClasses(appointment.status)}>
+                  {formatAppointmentStatus(appointment.status, locale)}
+                </span>
+                <EditIconButton
+                  label={t(locale, "admin.appointments.editLabel", {
+                    customerName: appointment.customerName,
+                  })}
+                  onClick={() => setEditingAppointment(appointment)}
+                />
+              </div>
+              <AppointmentStatusControls
+                appointmentId={appointment.id}
+                currentStatus={appointment.status}
+                businessSlug={businessSlug}
+                locale={locale}
               />
             </div>
           </article>

@@ -405,6 +405,34 @@ export async function deleteServiceAction(
   }
 }
 
+/**
+ * Build a default staff weekly schedule from the business's configured open
+ * hours, skipping days explicitly marked closed. Returns the rows to nest-create
+ * under a new StaffMember so it is bookable immediately (KAN-13).
+ */
+async function buildDefaultStaffAvailability(businessId: string) {
+  const [businessHours, dayStates] = await Promise.all([
+    prisma.businessHours.findMany({
+      where: { businessId },
+      select: { dayOfWeek: true, openTime: true, closeTime: true },
+    }),
+    prisma.businessHoursDay.findMany({
+      where: { businessId, isClosed: true },
+      select: { dayOfWeek: true },
+    }),
+  ]);
+
+  const closedDays = new Set(dayStates.map((day) => day.dayOfWeek));
+
+  return businessHours
+    .filter((window) => !closedDays.has(window.dayOfWeek))
+    .map((window) => ({
+      dayOfWeek: window.dayOfWeek,
+      startTime: window.openTime,
+      endTime: window.closeTime,
+    }));
+}
+
 export async function upsertStaffMemberAction(
   _previousState: AdminEntityActionState,
   formData: FormData,
@@ -473,8 +501,18 @@ export async function upsertStaffMemberAction(
         data: staffMemberData,
       });
     } else {
+      // Seed a default weekly schedule mirroring the business's open hours so a
+      // newly created staff member is immediately bookable (KAN-13). Without
+      // this, staff have zero StaffAvailability rows and generate no slots.
+      const defaultAvailability = await buildDefaultStaffAvailability(business.id);
+
       await prisma.staffMember.create({
-        data: staffMemberData,
+        data: {
+          ...staffMemberData,
+          availabilities: {
+            create: defaultAvailability,
+          },
+        },
       });
     }
 
@@ -972,5 +1010,54 @@ export async function updateDefaultLocaleAction(
     return buildEntityActionState("success", t(nextLocale, "actions.languageSaved"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.languageSaveError"));
+  }
+}
+
+const APPOINTMENT_STATUS_VALUES = Object.values(AppointmentStatus) as string[];
+
+export async function updateAppointmentStatusAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const business = await getAdminBusiness(formData, locale);
+    const appointmentId = getFormString(formData.get("appointmentId"));
+    const status = getFormString(formData.get("status"));
+
+    if (!appointmentId) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentIdMissing"));
+    }
+
+    if (!APPOINTMENT_STATUS_VALUES.includes(status)) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentStatusInvalid"));
+    }
+
+    // Scope by businessId so an admin can only mutate their own appointments.
+    const updated = await prisma.appointment.updateMany({
+      where: {
+        id: appointmentId,
+        businessId: business.id,
+      },
+      data: {
+        status: status as AppointmentStatus,
+      },
+    });
+
+    if (updated.count === 0) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentIdMissing"));
+    }
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      // Cancelling frees the slot, so refresh the public booking flow too.
+      publicPaths: ["/", "/book"],
+      adminPaths: ["/appointments", "/calendar"],
+    });
+
+    return buildEntityActionState("success", t(locale, "actions.appointmentStatusUpdated"));
+  } catch (error) {
+    return handleEntityMutationError(error, t(locale, "actions.appointmentStatusError"));
   }
 }

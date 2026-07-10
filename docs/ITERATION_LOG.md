@@ -1,5 +1,43 @@
 # ITERATION LOG
 
+## Ship-blockers: booking correctness & admin operability (KAN-23)
+Date/time: 2026-06-03
+
+### What changed
+- KAN-10: availability now computes all slot math in the business timezone via `@date-fns/tz` (`TZDate`), so displayed/booked times no longer drift with the server or viewer timezone; slot labels render in the business TZ and `startAt`/`endAt` are persisted as canonical UTC.
+- KAN-11: slots that start before "now" are excluded; a stale/past `slotStart` no longer matches on POST and is rejected (409).
+- KAN-12: appointment creation moved into `createGuardedAppointment`, which re-checks for an overlapping non-cancelled appointment and inserts inside a single transaction (serialized by the single-connection better-sqlite3 adapter); the losing concurrent request gets a 409. Covered by a Vitest concurrency test.
+- KAN-13: newly created staff are seeded a default weekly schedule mirroring the business's open hours, so they are bookable immediately.
+- KAN-14: added `NO_SHOW` to `AppointmentStatus` plus `updateAppointmentStatusAction` and per-row admin controls to move appointments through confirm/cancel/complete/no-show; cancelling frees the slot.
+- KAN-15: admin area is now authenticated (NextAuth Credentials + bcryptjs, `/admin/login`, `proxy.ts` gating `/admin` and `/api/admin`); `NEXTAUTH_SECRET` is validated at boot via `instrumentation.ts`.
+- Added Vitest with concurrency and timezone/past-slot tests.
+
+### Files/modules affected
+- `lib/booking.ts`, `app/api/appointments/route.ts`
+- `app/admin/actions.ts`, `app/admin/[businessSlug]/appointments/page.tsx`, `app/admin/[businessSlug]/appointments/appointment-status-controls.tsx`
+- `prisma/schema.prisma`, `prisma/seed.mjs`
+- `lib/customer-auth.ts`, `types/next-auth.d.ts`, `app/admin/login/page.tsx`, `proxy.ts`
+- `lib/env.ts`, `instrumentation.ts`
+- `lib/i18n.ts`, `app/globals.css`
+- `vitest.config.ts`, `tests/*`
+- `README.md`, `.gitignore`, `package.json`
+
+### Schema / migration changes
+- `AppointmentStatus` gains `NO_SHOW` (stored as TEXT in SQLite; no DB migration required).
+
+### Decisions made
+- Added `@date-fns/tz` (DST-correct), `bcryptjs` (admin hashing), and `vitest` rather than hand-rolling.
+- Admin auth reuses the existing single NextAuth instance with a Credentials provider distinguished by role on the JWT/session.
+- Default staff schedule mirrors business hours (vs. a fixed default) so slots respect the business's configured open windows.
+
+### Open issues / risks
+- Reopening a CANCELLED/COMPLETED/NO_SHOW appointment to CONFIRMED does not re-check availability, so an admin could theoretically reintroduce an overlap if the freed slot was rebooked. Acceptable for admin-controlled action; revisit if needed.
+- The double-booking guard relies on better-sqlite3's single-connection serialization; a future move to a multi-connection DB (e.g. Postgres) should add a DB-level exclusion/unique guard.
+- `/admin/login` copy is Spanish-only (pre-auth, locale-agnostic); fold into i18n if multi-language login is required.
+
+### Next recommended step
+- Browser smoke test the admin status transitions and the public booking flow across timezones; consider an end-to-end test for the booking POST path.
+
 ## Iteration 0
 Date/time: initial setup
 

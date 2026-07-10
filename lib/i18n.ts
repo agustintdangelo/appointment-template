@@ -72,6 +72,12 @@ const translations = {
       statusConfirmed: "Confirmado",
       statusCancelled: "Cancelado",
       statusCompleted: "Completado",
+      statusNoShow: "No asistió",
+      statusActionsLabel: "Cambiar estado",
+      actionConfirm: "Confirmar",
+      actionCancel: "Cancelar",
+      actionComplete: "Completar",
+      actionNoShow: "No asistió",
       edit: "Editar",
       selectedReplacement: "Reemplazo seleccionado",
       noFileUploaded: "Todavía no hay archivo cargado.",
@@ -540,6 +546,10 @@ const translations = {
       staffSaved: "Integrante guardado.",
       staffSaveError: "No se pudo guardar el integrante.",
       staffIdMissing: "Falta el id del integrante.",
+      appointmentIdMissing: "No se encontró la cita.",
+      appointmentStatusInvalid: "Estado de cita no válido.",
+      appointmentStatusUpdated: "Estado de la cita actualizado.",
+      appointmentStatusError: "No se pudo actualizar el estado de la cita.",
       staffDeleteLinked: "El equipo con citas no se puede eliminar. Desactívalo en su lugar.",
       staffDeleted: "Integrante eliminado.",
       staffDeleteError: "No se pudo eliminar el integrante.",
@@ -570,7 +580,6 @@ const translations = {
       brandingRequestReadError: "No se pudo leer la solicitud de subida de marca.",
       languageSaved: "Idioma guardado.",
       languageSaveError: "No se pudo guardar el idioma.",
-      appointmentIdMissing: "Falta el id de la cita.",
       appointmentNotFound: "Cita no encontrada.",
       appointmentStartRequired: "La fecha y hora son obligatorias.",
       appointmentStartInvalid: "La fecha y hora no son válidas.",
@@ -678,6 +687,12 @@ const translations = {
       statusConfirmed: "Confirmed",
       statusCancelled: "Cancelled",
       statusCompleted: "Completed",
+      statusNoShow: "No-show",
+      statusActionsLabel: "Change status",
+      actionConfirm: "Confirm",
+      actionCancel: "Cancel",
+      actionComplete: "Complete",
+      actionNoShow: "No-show",
       edit: "Edit",
       selectedReplacement: "Selected replacement",
       noFileUploaded: "No file uploaded yet.",
@@ -1146,6 +1161,10 @@ const translations = {
       staffSaved: "Staff member saved.",
       staffSaveError: "Unable to save the staff member.",
       staffIdMissing: "Staff member id is missing.",
+      appointmentIdMissing: "Appointment not found.",
+      appointmentStatusInvalid: "Invalid appointment status.",
+      appointmentStatusUpdated: "Appointment status updated.",
+      appointmentStatusError: "Unable to update the appointment status.",
       staffDeleteLinked: "Staff with appointments cannot be deleted. Deactivate them instead.",
       staffDeleted: "Staff member deleted.",
       staffDeleteError: "Unable to delete the staff member.",
@@ -1176,7 +1195,6 @@ const translations = {
       brandingRequestReadError: "Unable to read the branding upload request.",
       languageSaved: "Language saved.",
       languageSaveError: "Unable to save language.",
-      appointmentIdMissing: "Appointment id is missing.",
       appointmentNotFound: "Appointment not found.",
       appointmentStartRequired: "Date and time are required.",
       appointmentStartInvalid: "Date and time are not valid.",
@@ -1348,6 +1366,10 @@ export function formatAppointmentStatus(status: string, localeInput: unknown) {
 
   if (status === "COMPLETED") {
     return t(localeInput, "common.statusCompleted");
+  }
+
+  if (status === "NO_SHOW") {
+    return t(localeInput, "common.statusNoShow");
   }
 
   return status;
