@@ -1,6 +1,7 @@
 "use server";
 
 import { AppointmentStatus, Prisma } from "@prisma/client";
+import { addMinutes } from "date-fns";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
@@ -818,6 +819,163 @@ export async function upsertBrandingAction(
   formData: FormData,
 ): Promise<BrandingActionState> {
   return saveBrandingFromFormData(formData);
+}
+
+function buildAppointmentUpdateSchema(locale: unknown) {
+  return z
+    .object({
+      appointmentId: z.string().min(1, t(locale, "actions.appointmentIdMissing")),
+      staffMemberId: z.string().optional(),
+      notes: z.string().trim().max(500).optional(),
+      startAt: z.string().min(1, t(locale, "actions.appointmentStartRequired")),
+    })
+    .transform((value) => ({
+      ...value,
+      startAtDate: new Date(value.startAt),
+    }))
+    .superRefine((value, context) => {
+      if (Number.isNaN(value.startAtDate.getTime())) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t(locale, "actions.appointmentStartInvalid"),
+          path: ["startAt"],
+        });
+      }
+    });
+}
+
+export async function updateAppointmentAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const business = await getAdminBusiness(formData, locale);
+    const parsedInput = buildAppointmentUpdateSchema(locale).parse({
+      appointmentId: getFormString(formData.get("appointmentId")),
+      staffMemberId: getOptionalFormString(formData.get("staffMemberId")),
+      notes: getOptionalFormString(formData.get("notes")),
+      startAt: getFormString(formData.get("startAt")),
+    });
+
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        id: parsedInput.appointmentId,
+        businessId: business.id,
+      },
+      select: {
+        id: true,
+        service: {
+          select: {
+            durationMinutes: true,
+            bufferMinutes: true,
+          },
+        },
+      },
+    });
+
+    if (!appointment) {
+      return buildEntityActionState("error", t(locale, "actions.appointmentNotFound"));
+    }
+
+    const nextStaffMemberId = parsedInput.staffMemberId ?? null;
+
+    if (nextStaffMemberId) {
+      const staffMember = await prisma.staffMember.findFirst({
+        where: {
+          id: nextStaffMemberId,
+          businessId: business.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!staffMember) {
+        return buildEntityActionState(
+          "error",
+          t(locale, "actions.appointmentStaffNotFound"),
+          { staffMemberId: t(locale, "actions.appointmentStaffNotFound") },
+        );
+      }
+    }
+
+    const nextStartAt = parsedInput.startAtDate;
+    const nextEndAt = addMinutes(nextStartAt, appointment.service.durationMinutes);
+    const nextOccupiedUntil = addMinutes(nextEndAt, appointment.service.bufferMinutes);
+
+    if (nextStaffMemberId) {
+      const conflictingAppointments = await prisma.appointment.findMany({
+        where: {
+          businessId: business.id,
+          staffMemberId: nextStaffMemberId,
+          status: {
+            not: AppointmentStatus.CANCELLED,
+          },
+          id: {
+            not: appointment.id,
+          },
+          startAt: {
+            lt: nextOccupiedUntil,
+          },
+          endAt: {
+            gt: nextStartAt,
+          },
+        },
+        select: {
+          startAt: true,
+          endAt: true,
+          service: {
+            select: {
+              bufferMinutes: true,
+            },
+          },
+        },
+      });
+
+      const hasConflict = conflictingAppointments.some((existing) => {
+        const existingOccupiedUntil = addMinutes(
+          existing.endAt,
+          existing.service.bufferMinutes,
+        );
+
+        return (
+          nextStartAt.getTime() < existingOccupiedUntil.getTime() &&
+          nextOccupiedUntil.getTime() > existing.startAt.getTime()
+        );
+      });
+
+      if (hasConflict) {
+        return buildEntityActionState(
+          "error",
+          t(locale, "actions.appointmentSlotConflict"),
+          { startAt: t(locale, "actions.appointmentSlotConflict") },
+        );
+      }
+    }
+
+    await prisma.appointment.update({
+      where: {
+        id: appointment.id,
+      },
+      data: {
+        staffMemberId: nextStaffMemberId,
+        notes: parsedInput.notes ?? null,
+        startAt: nextStartAt,
+        endAt: nextEndAt,
+      },
+    });
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/book"],
+      adminPaths: ["/appointments", "/calendar"],
+    });
+    return buildEntityActionState("success", t(locale, "actions.appointmentSaved"));
+  } catch (error) {
+    return handleEntityMutationError(error, t(locale, "actions.appointmentSaveError"));
+  }
 }
 
 export async function updateDefaultLocaleAction(
