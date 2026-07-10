@@ -48,6 +48,7 @@ async function main() {
   await prisma.businessHours.deleteMany();
   await prisma.businessHoursDay.deleteMany();
   await prisma.adminUser.deleteMany();
+  await prisma.serviceStaff.deleteMany();
   await prisma.staffMember.deleteMany();
   await prisma.service.deleteMany();
   await prisma.business.deleteMany();
@@ -217,6 +218,17 @@ async function main() {
       })),
     });
   }
+
+  // Demo default: every staff member can perform every service. Admins can
+  // narrow this down per staff/service through the admin workspace.
+  await prisma.serviceStaff.createMany({
+    data: services.flatMap((service) =>
+      staffMembers.map((staffMember) => ({
+        serviceId: service.id,
+        staffMemberId: staffMember.id,
+      })),
+    ),
+  });
 
   const firstOpenDate = nextOpenDate(1);
   const secondOpenDate = nextOpenDate(2);

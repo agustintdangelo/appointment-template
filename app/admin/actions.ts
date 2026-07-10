@@ -178,6 +178,7 @@ function buildServiceSchema(locale: unknown) {
     price: z.coerce.number().min(0, t(locale, "actions.priceNegative")),
     sortOrder: z.coerce.number().int().min(0, t(locale, "actions.sortNegative")),
     isActive: z.boolean(),
+    staffMemberIds: z.array(z.string().min(1)).default([]),
   });
 }
 
@@ -190,6 +191,7 @@ function buildStaffSchema(locale: unknown) {
     bio: z.string().trim().max(600).optional(),
     sortOrder: z.coerce.number().int().min(0, t(locale, "actions.sortNegative")),
     isActive: z.boolean(),
+    serviceIds: z.array(z.string().min(1)).default([]),
   });
 }
 
@@ -302,6 +304,10 @@ export async function upsertServiceAction(
       price: getFormString(formData.get("price")),
       sortOrder: getFormString(formData.get("sortOrder")),
       isActive: getFormCheckbox(formData, "isActive"),
+      staffMemberIds: formData
+        .getAll("staffMemberIds")
+        .map((value) => getFormString(value))
+        .filter(Boolean),
     });
     const slug = parsedInput.slug || slugify(parsedInput.name);
 
@@ -319,6 +325,27 @@ export async function upsertServiceAction(
     if (duplicateService) {
       return buildEntityActionState("error", t(locale, "actions.serviceSlugUnique"), {
         slug: t(locale, "actions.serviceSlugUnique"),
+      });
+    }
+
+    const staffMemberIds = [...new Set(parsedInput.staffMemberIds)];
+    const businessStaffMembers =
+      staffMemberIds.length > 0
+        ? await prisma.staffMember.findMany({
+            where: {
+              businessId: business.id,
+              id: { in: staffMemberIds },
+            },
+            select: { id: true },
+          })
+        : [];
+    const validStaffMemberIds = new Set(
+      businessStaffMembers.map((member) => member.id),
+    );
+
+    if (staffMemberIds.some((id) => !validStaffMemberIds.has(id))) {
+      return buildEntityActionState("error", t(locale, "actions.serviceStaffInvalid"), {
+        staffMemberIds: t(locale, "actions.serviceStaffInvalid"),
       });
     }
 
@@ -349,22 +376,44 @@ export async function upsertServiceAction(
         return buildEntityActionState("error", t(locale, "actions.serviceIdMissing"));
       }
 
-      await prisma.service.update({
-        where: {
-          id: parsedInput.serviceId,
-        },
-        data: serviceData,
+      await prisma.$transaction(async (transaction) => {
+        await transaction.service.update({
+          where: { id: parsedInput.serviceId },
+          data: serviceData,
+        });
+        await syncServiceStaffLinks(transaction, parsedInput.serviceId!, staffMemberIds);
       });
     } else {
+      // Default a new service to be performable by every existing staff member
+      // when the admin hasn't picked a subset yet. This preserves the pre-KAN-16
+      // "everyone can do everything" experience for teams that haven't started
+      // maintaining the mapping.
+      const defaultStaffIds =
+        staffMemberIds.length > 0
+          ? staffMemberIds
+          : (
+              await prisma.staffMember.findMany({
+                where: { businessId: business.id },
+                select: { id: true },
+              })
+            ).map((member) => member.id);
+
       await prisma.service.create({
-        data: serviceData,
+        data: {
+          ...serviceData,
+          staffLinks: {
+            create: defaultStaffIds.map((staffMemberId) => ({
+              staffMemberId,
+            })),
+          },
+        },
       });
     }
 
     revalidateTenantPaths({
       businessSlug: business.slug,
       publicPaths: ["/", "/services", "/book"],
-      adminPaths: ["/services", "/appointments"],
+      adminPaths: ["/services", "/appointments", "/staff"],
     });
     return buildEntityActionState("success", t(locale, "actions.serviceSaved"));
   } catch (error) {
@@ -422,6 +471,70 @@ export async function deleteServiceAction(
   }
 }
 
+type PrismaTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+async function syncStaffServiceLinks(
+  transaction: PrismaTx,
+  staffMemberId: string,
+  nextServiceIds: string[],
+) {
+  const existing = await transaction.serviceStaff.findMany({
+    where: { staffMemberId },
+    select: { serviceId: true },
+  });
+  const existingIds = new Set(existing.map((row) => row.serviceId));
+  const nextIds = new Set(nextServiceIds);
+
+  const toDelete = [...existingIds].filter((id) => !nextIds.has(id));
+  const toCreate = [...nextIds].filter((id) => !existingIds.has(id));
+
+  if (toDelete.length > 0) {
+    await transaction.serviceStaff.deleteMany({
+      where: {
+        staffMemberId,
+        serviceId: { in: toDelete },
+      },
+    });
+  }
+
+  if (toCreate.length > 0) {
+    await transaction.serviceStaff.createMany({
+      data: toCreate.map((serviceId) => ({ staffMemberId, serviceId })),
+    });
+  }
+}
+
+async function syncServiceStaffLinks(
+  transaction: PrismaTx,
+  serviceId: string,
+  nextStaffMemberIds: string[],
+) {
+  const existing = await transaction.serviceStaff.findMany({
+    where: { serviceId },
+    select: { staffMemberId: true },
+  });
+  const existingIds = new Set(existing.map((row) => row.staffMemberId));
+  const nextIds = new Set(nextStaffMemberIds);
+
+  const toDelete = [...existingIds].filter((id) => !nextIds.has(id));
+  const toCreate = [...nextIds].filter((id) => !existingIds.has(id));
+
+  if (toDelete.length > 0) {
+    await transaction.serviceStaff.deleteMany({
+      where: {
+        serviceId,
+        staffMemberId: { in: toDelete },
+      },
+    });
+  }
+
+  if (toCreate.length > 0) {
+    await transaction.serviceStaff.createMany({
+      data: toCreate.map((staffMemberId) => ({ serviceId, staffMemberId })),
+    });
+  }
+}
+
 /**
  * Build a default staff weekly schedule from the business's configured open
  * hours, skipping days explicitly marked closed. Returns the rows to nest-create
@@ -466,6 +579,10 @@ export async function upsertStaffMemberAction(
       bio: getOptionalFormString(formData.get("bio")),
       sortOrder: getFormString(formData.get("sortOrder")),
       isActive: getFormCheckbox(formData, "isActive"),
+      serviceIds: formData
+        .getAll("serviceIds")
+        .map((value) => getFormString(value))
+        .filter(Boolean),
     });
     const slug = parsedInput.slug || slugify(parsedInput.name);
 
@@ -483,6 +600,25 @@ export async function upsertStaffMemberAction(
     if (duplicateStaffMember) {
       return buildEntityActionState("error", t(locale, "actions.staffSlugUnique"), {
         slug: t(locale, "actions.staffSlugUnique"),
+      });
+    }
+
+    const serviceIds = [...new Set(parsedInput.serviceIds)];
+    const businessServices =
+      serviceIds.length > 0
+        ? await prisma.service.findMany({
+            where: {
+              businessId: business.id,
+              id: { in: serviceIds },
+            },
+            select: { id: true },
+          })
+        : [];
+    const validServiceIds = new Set(businessServices.map((service) => service.id));
+
+    if (serviceIds.some((id) => !validServiceIds.has(id))) {
+      return buildEntityActionState("error", t(locale, "actions.staffServicesInvalid"), {
+        serviceIds: t(locale, "actions.staffServicesInvalid"),
       });
     }
 
@@ -511,23 +647,45 @@ export async function upsertStaffMemberAction(
         return buildEntityActionState("error", t(locale, "actions.staffIdMissing"));
       }
 
-      await prisma.staffMember.update({
-        where: {
-          id: parsedInput.staffMemberId,
-        },
-        data: staffMemberData,
+      await prisma.$transaction(async (transaction) => {
+        await transaction.staffMember.update({
+          where: { id: parsedInput.staffMemberId },
+          data: staffMemberData,
+        });
+        await syncStaffServiceLinks(
+          transaction,
+          parsedInput.staffMemberId!,
+          serviceIds,
+        );
       });
     } else {
       // Seed a default weekly schedule mirroring the business's open hours so a
       // newly created staff member is immediately bookable (KAN-13). Without
       // this, staff have zero StaffAvailability rows and generate no slots.
       const defaultAvailability = await buildDefaultStaffAvailability(business.id);
+      // Default a new staff member to be capable of every existing service when
+      // the admin hasn't picked a subset yet. Mirrors the pre-KAN-16 "everyone
+      // can do everything" behaviour so brand-new hires stay bookable.
+      const defaultServiceIds =
+        serviceIds.length > 0
+          ? serviceIds
+          : (
+              await prisma.service.findMany({
+                where: { businessId: business.id },
+                select: { id: true },
+              })
+            ).map((service) => service.id);
 
       await prisma.staffMember.create({
         data: {
           ...staffMemberData,
           availabilities: {
             create: defaultAvailability,
+          },
+          serviceLinks: {
+            create: defaultServiceIds.map((serviceId) => ({
+              serviceId,
+            })),
           },
         },
       });
@@ -536,7 +694,7 @@ export async function upsertStaffMemberAction(
     revalidateTenantPaths({
       businessSlug: business.slug,
       publicPaths: ["/", "/services", "/book"],
-      adminPaths: ["/staff", "/appointments", "/calendar"],
+      adminPaths: ["/staff", "/services", "/appointments", "/calendar"],
     });
     return buildEntityActionState("success", t(locale, "actions.staffSaved"));
   } catch (error) {
@@ -1010,6 +1168,7 @@ export async function updateAppointmentAction(
       },
       select: {
         id: true,
+        serviceId: true,
         service: {
           select: {
             durationMinutes: true,
@@ -1033,6 +1192,14 @@ export async function updateAppointmentAction(
         },
         select: {
           id: true,
+          serviceLinks: {
+            where: {
+              serviceId: appointment.serviceId,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       });
 
@@ -1041,6 +1208,14 @@ export async function updateAppointmentAction(
           "error",
           t(locale, "actions.appointmentStaffNotFound"),
           { staffMemberId: t(locale, "actions.appointmentStaffNotFound") },
+        );
+      }
+
+      if (staffMember.serviceLinks.length === 0) {
+        return buildEntityActionState(
+          "error",
+          t(locale, "actions.appointmentStaffCannotService"),
+          { staffMemberId: t(locale, "actions.appointmentStaffCannotService") },
         );
       }
     }

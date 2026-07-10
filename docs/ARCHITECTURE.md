@@ -8,6 +8,7 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 - BrandAsset
 - Service
 - StaffMember
+- ServiceStaff (join: which staff members can perform which services)
 - BusinessHoursDay
 - BusinessHours
 - StaffAvailability
@@ -88,11 +89,14 @@ Provide a generic appointment system that can be adapted to multiple service-bus
 
 ## Booking logic overview
 A slot is available only if:
+- the assigned staff member is linked to the requested service via `ServiceStaff` (KAN-16 bookability mapping)
 - it falls within business hours
 - it falls within staff availability if staff-specific
 - it does not overlap blackout dates
 - it does not overlap existing appointments
 - it fits service duration and optional buffer rules
+
+The "any professional" booking mode only iterates staff members that are linked to the chosen service, and admin appointment editing rejects reassigning an appointment to a staff member without a matching `ServiceStaff` row.
 
 ## Current implementation decisions
 - path-based multi-tenant mode

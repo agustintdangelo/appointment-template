@@ -53,6 +53,16 @@ export async function seedBookableBusiness(options?: {
     select: { id: true },
   });
 
+  // Every seeded service must be linked to seeded staff, otherwise the
+  // capability filter (KAN-16) would treat this staff member as unable to
+  // perform the service and produce zero slots.
+  await prisma.serviceStaff.create({
+    data: {
+      serviceId: service.id,
+      staffMemberId: staff.id,
+    },
+  });
+
   // Open and staffed every day of the week within the window.
   for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
     await prisma.businessHours.create({

@@ -113,6 +113,11 @@ export async function getDailyAvailability(
         id: input.staffMemberId,
         businessId: input.businessId,
         isActive: true,
+        serviceLinks: {
+          some: {
+            serviceId: input.serviceId,
+          },
+        },
       },
       select: {
         id: true,
@@ -332,10 +337,17 @@ export async function getBookingAvailability(
     };
   }
 
+  // "Any professional" mode must still respect service-staff bookability:
+  // only staff explicitly mapped to this service should be considered.
   const staffMembers = await prisma.staffMember.findMany({
     where: {
       businessId: input.businessId,
       isActive: true,
+      serviceLinks: {
+        some: {
+          serviceId: input.serviceId,
+        },
+      },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }],
     select: {

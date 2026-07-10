@@ -37,6 +37,9 @@ type StaffRecord = {
     endTime: string;
     isOff: boolean;
   }>;
+  serviceLinks?: Array<{
+    serviceId: string;
+  }>;
   _count?: {
     appointments: number;
     availabilities: number;
@@ -44,9 +47,16 @@ type StaffRecord = {
   };
 };
 
+type ServiceOption = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
 type StaffManagerProps = {
   businessSlug: string;
   staffMembers: StaffRecord[];
+  services: ServiceOption[];
   locale: AppLocale;
 };
 
@@ -182,11 +192,13 @@ function DeleteStaffButton({
 function StaffModalForm({
   staffMember,
   businessSlug,
+  services,
   onClose,
   locale,
 }: {
   staffMember: StaffRecord | null;
   businessSlug: string;
+  services: ServiceOption[];
   onClose: () => void;
   locale: AppLocale;
 }) {
@@ -201,6 +213,29 @@ function StaffModalForm({
   );
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
   const canDelete = !!staffMember && (staffMember._count?.appointments ?? 0) === 0;
+  const linkedServiceIds = new Set(
+    staffMember?.serviceLinks?.map((link) => link.serviceId) ?? [],
+  );
+  // New staff default to being capable of every service, mirroring the seed
+  // behaviour: without this the create modal would appear pre-empty and any
+  // click "save" without touching services would produce an unbookable staffer.
+  const initialSelectedIds = new Set<string>(
+    staffMember ? linkedServiceIds : services.map((service) => service.id),
+  );
+  const [selectedServiceIds, setSelectedServiceIds] =
+    useState<Set<string>>(initialSelectedIds);
+
+  function toggleService(serviceId: string) {
+    setSelectedServiceIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(serviceId)) {
+        next.delete(serviceId);
+      } else {
+        next.add(serviceId);
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (saveState.status === "success" || deleteState.status === "success") {
@@ -215,6 +250,14 @@ function StaffModalForm({
         <input type="hidden" name="businessSlug" value={businessSlug} />
         <input type="hidden" name="staffMemberId" defaultValue={staffMember?.id ?? ""} />
         <input type="hidden" name="locale" value={locale} />
+        {[...selectedServiceIds].map((serviceId) => (
+          <input
+            key={serviceId}
+            type="hidden"
+            name="serviceIds"
+            value={serviceId}
+          />
+        ))}
 
         {saveState.status === "error" && saveState.message ? (
           <div className="admin-error-banner">
@@ -292,6 +335,59 @@ function StaffModalForm({
             {t(locale, "admin.staff.activeAssignable")}
           </label>
         </div>
+
+        <fieldset className="grid gap-3">
+          <legend className="text-sm font-medium">
+            {t(locale, "admin.staff.servicesLabel")}
+          </legend>
+          <p className="text-sm text-muted">
+            {t(locale, "admin.staff.servicesDescription")}
+          </p>
+
+          {services.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-surface px-4 py-3 text-sm text-muted">
+              {t(locale, "admin.staff.servicesEmpty")}
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {services.map((service) => {
+                const checked = selectedServiceIds.has(service.id);
+                return (
+                  <label
+                    key={service.id}
+                    className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
+                      checked
+                        ? "border-accent bg-highlight-surface text-highlight-foreground"
+                        : "border-border bg-surface hover:border-accent"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="admin-checkbox mt-1"
+                      checked={checked}
+                      onChange={() => toggleService(service.id)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-semibold">{service.name}</span>
+                      {!service.isActive ? (
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted">
+                          {t(locale, "common.inactive")}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {services.length > 0 && selectedServiceIds.size === 0 ? (
+            <p className="text-sm text-rose-700">
+              {t(locale, "admin.staff.servicesNoneWarning")}
+            </p>
+          ) : null}
+          <FormErrorText error={saveState.fieldErrors.serviceIds} />
+        </fieldset>
 
         <div className="flex flex-wrap gap-3 pt-2">
           <SaveStaffButton isEditing={!!staffMember} locale={locale} />
@@ -569,6 +665,7 @@ function EmptyResults({
 export default function StaffManager({
   businessSlug,
   staffMembers,
+  services,
   locale,
 }: StaffManagerProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -713,6 +810,7 @@ export default function StaffManager({
         <StaffModalForm
           businessSlug={businessSlug}
           staffMember={modalStaffMember}
+          services={services}
           onClose={closeModal}
           locale={locale}
         />
