@@ -214,6 +214,23 @@ function buildBusinessHoursSchema(locale: unknown) {
   });
 }
 
+function buildStaffScheduleSchema(locale: unknown) {
+  return z.object({
+    staffMemberId: z.string().min(1, t(locale, "actions.staffIdMissing")),
+    dayOfWeek: z.coerce.number().int().min(0).max(6),
+    isOff: z.boolean(),
+    periods: z
+      .array(businessPeriodSchema)
+      .max(
+        MAX_BUSINESS_PERIODS_PER_DAY,
+        t(locale, "actions.businessPeriodsLimit", {
+          count: MAX_BUSINESS_PERIODS_PER_DAY,
+        }),
+      ),
+    copyToDayOfWeek: z.array(z.coerce.number().int().min(0).max(6)).default([]),
+  });
+}
+
 function buildBlackoutSchema(locale: unknown) {
   return z
     .object({
@@ -574,6 +591,133 @@ export async function deleteStaffMemberAction(
     return buildEntityActionState("success", t(locale, "actions.staffDeleted"));
   } catch (error) {
     return handleEntityMutationError(error, t(locale, "actions.staffDeleteError"));
+  }
+}
+
+export async function upsertStaffScheduleAction(
+  _previousState: AdminEntityActionState,
+  formData: FormData,
+): Promise<AdminEntityActionState> {
+  const locale = getActionLocale(formData);
+
+  try {
+    const business = await getAdminBusiness(formData, locale);
+    const openTimes = formData.getAll("openTime").map((value) => getFormString(value));
+    const closeTimes = formData.getAll("closeTime").map((value) => getFormString(value));
+    const periods = openTimes.map((openTime, index) => ({
+      openTime,
+      closeTime: closeTimes[index] ?? "",
+    }));
+    const parsedInput = buildStaffScheduleSchema(locale).parse({
+      staffMemberId: getFormString(formData.get("staffMemberId")),
+      dayOfWeek: getFormString(formData.get("dayOfWeek")),
+      isOff: getFormCheckbox(formData, "isOff"),
+      periods,
+      copyToDayOfWeek: formData
+        .getAll("copyToDayOfWeek")
+        .map((value) => getFormString(value))
+        .filter(Boolean),
+    });
+
+    const staffMember = await prisma.staffMember.findFirst({
+      where: {
+        id: parsedInput.staffMemberId,
+        businessId: business.id,
+      },
+      select: { id: true },
+    });
+
+    if (!staffMember) {
+      return buildEntityActionState("error", t(locale, "actions.staffIdMissing"));
+    }
+
+    const validatedPeriods = validateBusinessPeriods({
+      periods: parsedInput.periods,
+      isClosed: parsedInput.isOff,
+      locale,
+    });
+
+    if (validatedPeriods.hasErrors) {
+      const fieldErrors = buildBusinessPeriodFieldErrors(validatedPeriods);
+
+      return buildEntityActionState(
+        "error",
+        validatedPeriods.formError ??
+          Object.values(fieldErrors)[0] ??
+          t(locale, "actions.staffScheduleSaveError"),
+        fieldErrors,
+      );
+    }
+
+    const copyToDayOfWeek = [...new Set(parsedInput.copyToDayOfWeek)].filter(
+      (dayOfWeek) => dayOfWeek !== parsedInput.dayOfWeek,
+    );
+
+    if (
+      copyToDayOfWeek.length > 0 &&
+      (parsedInput.isOff || validatedPeriods.sortedPeriods.length === 0)
+    ) {
+      return buildEntityActionState("error", t(locale, "actions.copyRequiresPeriod"), {
+        copyToDayOfWeek: t(locale, "actions.copyRequiresPeriodField"),
+      });
+    }
+
+    const sortedPeriods = sortBusinessPeriods(validatedPeriods.sortedPeriods);
+
+    await prisma.$transaction(async (transaction) => {
+      const daysToReplace = [parsedInput.dayOfWeek, ...copyToDayOfWeek];
+
+      await transaction.staffAvailability.deleteMany({
+        where: {
+          staffMemberId: parsedInput.staffMemberId,
+          dayOfWeek: {
+            in: daysToReplace,
+          },
+        },
+      });
+
+      const rowsToCreate = daysToReplace.flatMap((dayOfWeek) => {
+        const isTargetDay = dayOfWeek === parsedInput.dayOfWeek;
+        const dayIsOff = isTargetDay ? parsedInput.isOff : false;
+
+        if (dayIsOff || sortedPeriods.length === 0) {
+          return [];
+        }
+
+        return sortedPeriods.map((period) => ({
+          staffMemberId: parsedInput.staffMemberId,
+          dayOfWeek,
+          startTime: period.openTime,
+          endTime: period.closeTime,
+          isOff: false,
+        }));
+      });
+
+      if (rowsToCreate.length > 0) {
+        await transaction.staffAvailability.createMany({
+          data: rowsToCreate,
+        });
+      }
+    });
+
+    revalidateTenantPaths({
+      businessSlug: business.slug,
+      publicPaths: ["/book"],
+      adminPaths: ["/staff", "/calendar"],
+    });
+
+    return buildEntityActionState(
+      "success",
+      copyToDayOfWeek.length > 0
+        ? copyToDayOfWeek.length === 1
+          ? t(locale, "actions.staffScheduleCopiedOne")
+          : t(locale, "actions.staffScheduleCopied", {
+              count: copyToDayOfWeek.length,
+            })
+        : t(locale, "actions.staffScheduleUpdated"),
+    );
+  } catch (error) {
+    return handleEntityMutationError(error, t(locale, "actions.staffScheduleSaveError"));
   }
 }
 

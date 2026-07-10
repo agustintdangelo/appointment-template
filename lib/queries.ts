@@ -452,6 +452,16 @@ export async function getAdminStaffMembers(businessSlug?: string) {
       bio: true,
       isActive: true,
       sortOrder: true,
+      availabilities: {
+        orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+        select: {
+          id: true,
+          dayOfWeek: true,
+          startTime: true,
+          endTime: true,
+          isOff: true,
+        },
+      },
       _count: {
         select: {
           appointments: true,

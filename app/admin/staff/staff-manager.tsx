@@ -19,6 +19,7 @@ import {
 import CreateEntityModal from "@/app/admin/components/create-entity-modal";
 import ListView from "@/app/admin/components/list-view";
 import useSessionCollectionViewMode from "@/app/admin/components/use-session-collection-view";
+import StaffScheduleModal from "@/app/admin/staff/staff-schedule-modal";
 import { t, type AppLocale } from "@/lib/i18n";
 
 type StaffRecord = {
@@ -29,6 +30,13 @@ type StaffRecord = {
   bio: string | null;
   isActive: boolean;
   sortOrder: number;
+  availabilities?: Array<{
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isOff: boolean;
+  }>;
   _count?: {
     appointments: number;
     availabilities: number;
@@ -382,10 +390,12 @@ function AddStaffCard({ onCreate, locale }: { onCreate: () => void; locale: AppL
 function StaffCard({
   staffMember,
   onEdit,
+  onEditSchedule,
   locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  onEditSchedule: (staffMember: StaffRecord) => void;
   locale: AppLocale;
 }) {
   return (
@@ -424,6 +434,17 @@ function StaffCard({
         <span className="rounded-full border border-border bg-surface px-3 py-2">
           {t(locale, "admin.staff.order", { order: staffMember.sortOrder })}
         </span>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={() => onEditSchedule(staffMember)}
+          className="admin-button-secondary"
+          aria-label={t(locale, "admin.staff.scheduleLabel", { name: staffMember.name })}
+        >
+          {t(locale, "admin.staff.schedule")}
+        </button>
       </div>
     </article>
   );
@@ -466,10 +487,12 @@ function AddStaffListRow({ onCreate, locale }: { onCreate: () => void; locale: A
 function StaffListRow({
   staffMember,
   onEdit,
+  onEditSchedule,
   locale,
 }: {
   staffMember: StaffRecord;
   onEdit: (staffMember: StaffRecord) => void;
+  onEditSchedule: (staffMember: StaffRecord) => void;
   locale: AppLocale;
 }) {
   return (
@@ -495,7 +518,15 @@ function StaffListRow({
         </span>
       </div>
 
-      <div className="flex justify-start md:justify-end">
+      <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+        <button
+          type="button"
+          onClick={() => onEditSchedule(staffMember)}
+          className="admin-button-secondary"
+          aria-label={t(locale, "admin.staff.scheduleLabel", { name: staffMember.name })}
+        >
+          {t(locale, "admin.staff.schedule")}
+        </button>
         <EditIconButton
           label={t(locale, "admin.staff.editLabel", { name: staffMember.name })}
           onClick={() => onEdit(staffMember)}
@@ -545,6 +576,7 @@ export default function StaffManager({
   const [sortValue, setSortValue] = useState<AdminCollectionSort>("default");
   const [viewMode, setViewMode] = useSessionCollectionViewMode(VIEW_MODE_STORAGE_KEY);
   const [editingStaffMember, setEditingStaffMember] = useState<StaffRecord | null>(null);
+  const [schedulingStaffMemberId, setSchedulingStaffMemberId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const visibleStaffMembers = sortStaffMembers(
@@ -629,6 +661,9 @@ export default function StaffManager({
                   key={staffMember.id}
                   staffMember={staffMember}
                   onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                  onEditSchedule={(selectedStaffMember) =>
+                    setSchedulingStaffMemberId(selectedStaffMember.id)
+                  }
                   locale={locale}
                 />
               ))}
@@ -646,6 +681,9 @@ export default function StaffManager({
                   <StaffListRow
                     staffMember={staffMember}
                     onEdit={(selectedStaffMember) => setEditingStaffMember(selectedStaffMember)}
+                    onEditSchedule={(selectedStaffMember) =>
+                      setSchedulingStaffMemberId(selectedStaffMember.id)
+                    }
                     locale={locale}
                   />
                 </div>
@@ -679,6 +717,24 @@ export default function StaffManager({
           locale={locale}
         />
       </CreateEntityModal>
+
+      <StaffScheduleModal
+        businessSlug={businessSlug}
+        staffMember={(() => {
+          if (!schedulingStaffMemberId) return null;
+          const found = staffMembers.find(
+            (staffMember) => staffMember.id === schedulingStaffMemberId,
+          );
+          if (!found) return null;
+          return {
+            id: found.id,
+            name: found.name,
+            availabilities: found.availabilities ?? [],
+          };
+        })()}
+        onClose={() => setSchedulingStaffMemberId(null)}
+        locale={locale}
+      />
     </>
   );
 }
