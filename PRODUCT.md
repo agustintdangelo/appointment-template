@@ -54,7 +54,7 @@ Aim for WCAG AA contrast for core text and controls. Respect reduced-motion pref
 
 - single customer-first appointment page at `/`
 - Spanish customer-facing copy for the public booking and confirmation flow
-- branch-selection entry step labeled "Sucursales"
+- single-business intro entry step before the appointment form (multi-location remains out of scope)
 - compatibility redirects from `/book` and `/services`
 - availability picker
 - booking confirmation
@@ -75,7 +75,7 @@ Aim for WCAG AA contrast for core text and controls. Respect reduced-motion pref
 
 - implemented: single customer-first public booking page at `/`
 - implemented: Spanish public booking and confirmation copy
-- implemented: "Sucursales" entry step before the appointment form
+- implemented: single-business intro entry step before the appointment form
 - implemented: compatibility redirects from `/book` and `/services`
 - implemented: booking flow with card-based service selection and optional staff preference
 - implemented: live availability generation
@@ -100,7 +100,7 @@ Aim for WCAG AA contrast for core text and controls. Respect reduced-motion pref
 - availability is computed from schedules, blackout dates, and existing appointments
 - customers can choose "Cualquier profesional" or a specific staff preference before slot generation
 - "Cualquier profesional" deterministically assigns the first available staff member by staff ordering for the chosen slot
-- the current "Sucursales" step uses the primary business record as the single available branch until multi-location support exists
+- the intro entry step confirms the primary business record as the single booking context; multi-location remains out of scope
 - bookings are confirmed immediately after creation in the current implementation
 
 ## Out Of Scope For MVP
