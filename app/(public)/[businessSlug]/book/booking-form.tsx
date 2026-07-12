@@ -84,7 +84,7 @@ export default function BookingForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSubmitting, startTransition] = useTransition();
-  const [hasSelectedBranch, setHasSelectedBranch] = useState(false);
+  const [hasStartedBooking, setHasStartedBooking] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => getInitialBookingDate());
@@ -317,35 +317,35 @@ export default function BookingForm({
     setAvailabilityRefreshKey((currentValue) => currentValue + 1);
   }
 
-  if (!hasSelectedBranch) {
+  if (!hasStartedBooking) {
     return (
       <section
-        aria-labelledby="branch-heading"
+        aria-labelledby="booking-intro-heading"
         className="brand-panel-shadow rounded-[2rem] border border-border bg-card/95 p-6 sm:p-8"
       >
         <div className="grid gap-3">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted">
-            {t(locale, "public.bookingForm.branchesEyebrow")}
+            {t(locale, "public.bookingForm.introEyebrow")}
           </p>
-          <h2 id="branch-heading" className="font-display text-4xl">
-            {t(locale, "public.bookingForm.branchesTitle")}
+          <h2 id="booking-intro-heading" className="font-display text-4xl">
+            {t(locale, "public.bookingForm.introTitle")}
           </h2>
           <p className="max-w-2xl text-sm leading-7 text-muted">
-            {t(locale, "public.bookingForm.branchesDescription")}
+            {t(locale, "public.bookingForm.introDescription")}
           </p>
         </div>
 
         <button
           type="button"
-          onClick={() => setHasSelectedBranch(true)}
+          onClick={() => setHasStartedBooking(true)}
           className="mt-6 w-full rounded-[1.5rem] border border-accent bg-surface p-5 text-left transition hover:bg-card focus:outline-none focus:ring-2 focus:ring-accent"
         >
           <span className="block text-sm font-semibold uppercase tracking-[0.24em] text-muted">
-            {t(locale, "public.bookingForm.availableBranch")}
+            {t(locale, "public.bookingForm.startBookingLabel")}
           </span>
           <span className="mt-2 block font-display text-3xl">{business.name}</span>
           <span className="mt-2 block text-sm leading-7 text-muted">
-            {t(locale, "public.bookingForm.liveAvailabilityBranch")}
+            {t(locale, "public.bookingForm.liveAvailability")}
           </span>
         </button>
       </section>
@@ -651,7 +651,7 @@ export default function BookingForm({
 
           <dl className="mt-5 grid gap-3 text-sm">
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">{t(locale, "common.branch")}</dt>
+              <dt className="text-muted">{t(locale, "common.business")}</dt>
               <dd className="text-right font-medium">{business.name}</dd>
             </div>
             <div className="flex items-center justify-between gap-4">
